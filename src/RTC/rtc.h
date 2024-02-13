@@ -4,6 +4,8 @@
 #include "../I2C/I2CDevice.h"
 #include <unistd.h>
 #include <ctime>
+#include <memory>
+
 
 #define REG_TIME_SECONDS 0x00
 #define REG_TIME_MINUTES (REG_TIME_SECONDS + 1)
@@ -24,11 +26,13 @@ typedef struct user_time_t {
     uint8_t year;
 } user_time_t;
 
+using user_time_ptr_t = std::shared_ptr<user_time_t>;
+
 class RTC: public EE513::I2CDevice {
 
 public:
     RTC(unsigned int bus, unsigned int device);
-    user_time_t* readTime();
+    user_time_ptr_t readTime();
     int writeTime(user_time_t* t);
 };
 

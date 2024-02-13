@@ -5,7 +5,7 @@
 
 using namespace std;
 
-void printUserTime(const user_time_t *timePtr)
+void printUserTime(user_time_ptr_t timePtr)
 {
     if (timePtr == nullptr)
     {
@@ -25,8 +25,7 @@ void printUserTime(const user_time_t *timePtr)
 int main()
 {
     RTC rtc(1, 0x68);
-    user_time_t* t = rtc.readTime();
+    user_time_ptr_t t = rtc.readTime();
     printUserTime(t);
-    delete t;
     return 0;
 }

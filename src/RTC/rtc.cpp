@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <iomanip>
+#include <memory>
 
 #include "rtc.h"
 
@@ -29,10 +30,10 @@ RTC::RTC(unsigned int bus, unsigned int device) : I2CDevice(bus, device)
 {
 }
 
-user_time_t *RTC::readTime()
+user_time_ptr_t RTC::readTime()
 {
-    user_time_t *t = new user_time_t;
-    if (t == nullptr)
+    user_time_ptr_t t (new user_time_t);
+    if (t.get() == nullptr)
     {
         perror("RTC: NO MEMORY AVAILABLE to allocate user_time_t* t");
         return nullptr;
@@ -45,7 +46,7 @@ user_time_t *RTC::readTime()
     t->date_of_month = BCD_to_decimal(*(data + 4));
     t->month = BCD_to_decimal(*(data + 5));
     t->year = BCD_to_decimal(*(data + 6));
-    delete data;
+    delete [] data;
     return t;
 }
 
