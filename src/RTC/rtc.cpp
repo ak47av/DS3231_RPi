@@ -23,6 +23,11 @@ RTC::RTC(unsigned int bus, unsigned int device) : I2CDevice(bus, device)
 {
 }
 
+/**
+ * The function to convert an 8 bit BCD value into an 8 bit decimal value into  
+ * @param BCD 8 bit BCD value
+ * @return 8 bit decimal value
+ */
 uint8_t RTC::BCD_to_decimal(uint8_t BCD_value)
 {
     uint8_t res = BCD_value & 0xF;
@@ -76,6 +81,11 @@ int RTC::writeTime(user_time_ptr_t t)
     return 0;
 }
 
+/**
+ * The function to convert an 8 bit decimal value into an 8 bit BCD value
+ * @param decimal decimal value
+ * @return 8 bit BCD value
+ */
 uint8_t RTC::decimal_to_BCD(uint8_t decimal)
 {
     uint8_t res = (decimal/10) << 4;
@@ -83,6 +93,9 @@ uint8_t RTC::decimal_to_BCD(uint8_t decimal)
     return res;
 }
 
+/**
+ * The function to write the system time to the RTC Module
+ */
 void RTC::writeCurrentTimeToRTC()
 {
     time_t now = time(0);
@@ -100,4 +113,33 @@ void RTC::writeCurrentTimeToRTC()
     int yearMod100 = tstruct.tm_year % 100;
     t->year = decimal_to_BCD(yearMod100);
     this->writeTime(t);
+}
+
+/**
+ * The function to read the Temperature from the RTC Module
+ * @return float representation of Temperature
+ */
+float RTC::getTemperature()
+{
+    float temp_msb = static_cast<float>(this->readRegister(REG_TEMPERATURE_MSB));
+    unsigned char temp_lsb = this->readRegister(REG_TEMPERATURE_LSB);
+    unsigned char decimal_bits = (temp_lsb & 0xC0) >> 6;
+    switch (decimal_bits)
+    {
+    case 0b01:
+        temp_msb += 0.25;
+        break;
+
+    case 0b10:
+        temp_msb += 0.50;
+        break;
+
+    case 0b11:
+        temp_msb += 0.75;
+        break;
+    
+    default:
+        break;
+    }
+    return temp_msb;
 }

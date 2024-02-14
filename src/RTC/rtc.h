@@ -41,6 +41,7 @@ public:
     user_time_ptr_t readTime();
     int writeTime(user_time_ptr_t t);
     void writeCurrentTimeToRTC();
+    float getTemperature();
 };
 
 #endif
