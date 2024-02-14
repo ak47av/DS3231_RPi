@@ -15,6 +15,9 @@
 #define REG_TIME_MONTH (REG_TIME_SECONDS + 5)
 #define REG_TIME_YEAR (REG_TIME_SECONDS + 6)
 
+#define REG_TEMPERATURE_MSB 0x11
+#define REG_TEMPERATURE_LSB 0x12
+
 
 typedef struct user_time_t {
     uint8_t seconds;       
@@ -29,11 +32,15 @@ typedef struct user_time_t {
 using user_time_ptr_t = std::shared_ptr<user_time_t>;
 
 class RTC: public EE513::I2CDevice {
+private:
+    uint8_t BCD_to_decimal(uint8_t BCD_value);
+    uint8_t decimal_to_BCD(uint8_t decimal);
 
 public:
     RTC(unsigned int bus, unsigned int device);
     user_time_ptr_t readTime();
-    int writeTime(user_time_t* t);
+    int writeTime(user_time_ptr_t t);
+    void writeCurrentTimeToRTC();
 };
 
 #endif

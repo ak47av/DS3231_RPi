@@ -11,13 +11,6 @@ using namespace std;
 
 #define HEX(x) setw(2) << setfill('0') << hex << (int)(x)
 
-uint8_t BCD_to_decimal(uint8_t BCD_value)
-{
-    uint8_t res;
-    res = BCD_value & 0xF;
-    res += 10 * (BCD_value >> 4);
-    return res;
-}
 
 /**
  * Constructor for the RTC class. It requires the bus number and device number.
@@ -30,6 +23,17 @@ RTC::RTC(unsigned int bus, unsigned int device) : I2CDevice(bus, device)
 {
 }
 
+uint8_t RTC::BCD_to_decimal(uint8_t BCD_value)
+{
+    uint8_t res = BCD_value & 0xF;
+    res += 10 * (BCD_value >> 4);
+    return res;
+}
+
+/**
+ * The function to read the time from the RTC Module.
+ * @return user_time_ptr_t pointer to struct containing the time and date data in decimal format
+ */
 user_time_ptr_t RTC::readTime()
 {
     user_time_ptr_t t (new user_time_t);
@@ -38,19 +42,24 @@ user_time_ptr_t RTC::readTime()
         perror("RTC: NO MEMORY AVAILABLE to allocate user_time_t* t");
         return nullptr;
     }
-    unsigned char *data = this->readRegisters(6, 0x00);
-    t->seconds = BCD_to_decimal(*data);
-    t->minutes = BCD_to_decimal(*(data + 1));
-    t->hours = BCD_to_decimal(*(data + 2));
-    t->day_of_week = BCD_to_decimal(*(data + 3));
-    t->date_of_month = BCD_to_decimal(*(data + 4));
-    t->month = BCD_to_decimal(*(data + 5));
-    t->year = BCD_to_decimal(*(data + 6));
-    delete [] data;
+    unsigned char *data = this->readRegisters(7, 0x00);
+    t->seconds = this->BCD_to_decimal(*data);
+    t->minutes = this->BCD_to_decimal(*(data + 1));
+    t->hours = this->BCD_to_decimal(*(data + 2));
+    t->day_of_week = this->BCD_to_decimal(*(data + 3));
+    t->date_of_month = this->BCD_to_decimal(*(data + 4));
+    t->month = this->BCD_to_decimal(*(data + 5));
+    t->year = this->BCD_to_decimal(*(data + 6));
+    delete []data;
     return t;
 }
 
-int RTC::writeTime(user_time_t* t)
+/**
+ * The function to write time onto the RTC Module
+ * @param t is a user_time_ptr_t pointer to struct containing the time and date
+ * @return 0 if successful, 1 if not
+ */
+int RTC::writeTime(user_time_ptr_t t)
 {
     int res = this->writeRegister(REG_TIME_SECONDS, t->seconds);
     res = this->writeRegister(REG_TIME_MINUTES, t->minutes);
@@ -65,4 +74,30 @@ int RTC::writeTime(user_time_t* t)
         return 1;
     }
     return 0;
+}
+
+uint8_t RTC::decimal_to_BCD(uint8_t decimal)
+{
+    uint8_t res = (decimal/10) << 4;
+    res |= decimal%10;
+    return res;
+}
+
+void RTC::writeCurrentTimeToRTC()
+{
+    time_t now = time(0);
+    struct tm tstruct;
+    tstruct = *localtime(&now);
+
+    user_time_ptr_t t (new user_time_t);
+    t->seconds = decimal_to_BCD(tstruct.tm_sec);
+    t->minutes = decimal_to_BCD(tstruct.tm_min);
+    t->hours = decimal_to_BCD(tstruct.tm_hour);
+    t->day_of_week = decimal_to_BCD(tstruct.tm_wday+1);
+    t->date_of_month = decimal_to_BCD(tstruct.tm_mday);
+    t->month = decimal_to_BCD(tstruct.tm_mon + 1);
+
+    int yearMod100 = tstruct.tm_year % 100;
+    t->year = decimal_to_BCD(yearMod100);
+    this->writeTime(t);
 }
