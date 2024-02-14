@@ -39,12 +39,13 @@ const string currentDateTime() {
 int main()
 {
     RTC rtc(1, 0x68);
-    // cout << "currentDateTime()=" << currentDateTime() << endl;
 
-    // rtc.writeCurrentTimeToRTC();
-    // user_time_ptr_t read_t = rtc.readTime();
-    // printUserTime(read_t);
+    rtc.writeCurrentTimeToRTC();
+    user_time_ptr_t read_t = rtc.readTime();
+    printUserTime(read_t);
 
-    cout << rtc.getTemperature() << endl;
+    cout << rtc.setAlarm1(30, 45, 18) << endl;
+    cout << rtc.setAlarm2(20, 19) << endl;
+
     return 0;
 }

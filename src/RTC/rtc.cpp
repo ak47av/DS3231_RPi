@@ -44,7 +44,7 @@ user_time_ptr_t RTC::readTime()
     user_time_ptr_t t (new user_time_t);
     if (t.get() == nullptr)
     {
-        perror("RTC: NO MEMORY AVAILABLE to allocate user_time_t* t");
+        cerr << "RTC: NO MEMORY AVAILABLE to allocate user_time_t* t" << endl;
         return nullptr;
     }
     unsigned char *data = this->readRegisters(7, 0x00);
@@ -67,18 +67,21 @@ user_time_ptr_t RTC::readTime()
 int RTC::writeTime(user_time_ptr_t t)
 {
     int res = this->writeRegister(REG_TIME_SECONDS, t->seconds);
+    if(res) return res;
     res = this->writeRegister(REG_TIME_MINUTES, t->minutes);
+    if(res) return res;
     res = this->writeRegister(REG_TIME_HOURS, t->hours);
+    if(res) return res;
     res = this->writeRegister(REG_TIME_DAY_OF_WEEK, t->day_of_week);
+    if(res) return res;
     res = this->writeRegister(REG_TIME_DATE_OF_MONTH, t->date_of_month);
+    if(res) return res;
     res = this->writeRegister(REG_TIME_MONTH, t->month);
+    if(res) return res;
     res = this->writeRegister(REG_TIME_YEAR, t->year);
-    if(res == 1)
-    {
-        perror("RTC: Unable to write time\n");
-        return 1;
-    }
-    return 0;
+    if(res) return res;
+    if(res) cerr << "RTC: Unable to write time to module" << endl;
+    return res;
 }
 
 /**
@@ -96,7 +99,7 @@ uint8_t RTC::decimal_to_BCD(uint8_t decimal)
 /**
  * The function to write the system time to the RTC Module
  */
-void RTC::writeCurrentTimeToRTC()
+int RTC::writeCurrentTimeToRTC()
 {
     time_t now = time(0);
     struct tm tstruct;
@@ -112,7 +115,12 @@ void RTC::writeCurrentTimeToRTC()
 
     int yearMod100 = tstruct.tm_year % 100;
     t->year = decimal_to_BCD(yearMod100);
-    this->writeTime(t);
+    if(this->writeTime(t))
+    {
+        cerr << "RTC: Unable to write system time to module" << endl;
+        return 1;
+    }
+    return 0;
 }
 
 /**
@@ -142,4 +150,103 @@ float RTC::getTemperature()
         break;
     }
     return temp_msb;
+}
+
+
+int RTC::setAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+{
+    // Set alarm minutes
+    if(minutes > 59 || minutes < 0)
+    {
+        cerr << "Minutes can't be more than 59 or less than 0" << endl;
+        return 1;
+    }
+    unsigned char minutesBCD = (decimal_to_BCD(minutes));
+
+    // Set alarm hours
+    if(hours > 23 || hours < 0)
+    {
+        cerr << "Hours cannot be more than 23 or less than 0" << endl;
+        return 1;
+    }
+    unsigned char hoursBCD = (decimal_to_BCD(hours));
+
+    // Set Alarm day or date
+    uint8_t day_date_to_set = 0;
+    if(day_or_date == 1)
+    {
+        day_date_to_set |= MASK_ALARM_DAY_OR_DATEINV;
+        if(day_date > 7 || day_date < 1)
+        {
+            cerr << "Day cannot be greater than 7 or lesser than 1" << endl;
+            return 1;
+        }
+    }
+    else if (day_or_date == 0)
+    {
+        day_date_to_set &= ~(MASK_ALARM_DAY_OR_DATEINV);
+        if(day_date > 31 || day_date < 1)
+        {
+            cerr << "Date cannot be greater than 31 or lesser than 1" << endl;
+            return 1;
+        }
+    }
+    else
+    {
+        cerr << "If Day then 1, if Date then 0, no other values permitted" << endl;
+        return 1;
+    }
+    day_date_to_set |= decimal_to_BCD(day_date);
+    unsigned char day_date_to_set_BCD = static_cast<unsigned char>(day_date_to_set);
+
+    int res = 0;
+    if(alarm_num == 1)
+    {
+        res = this->writeRegister(REG_MINUTES_ALARM_1, minutesBCD);
+        if(res) return res;
+        res = this->writeRegister(REG_HOURS_ALARM_1, hoursBCD);
+        if(res) return res;
+        res = this->writeRegister(REG_DAYS_ALARM_1, day_date_to_set_BCD);
+        if(res) return res;
+    } 
+    else if (alarm_num == 2)
+    {
+        res = this->writeRegister(REG_MINUTES_ALARM_2, minutesBCD);
+        if(res) return res;
+        res = this->writeRegister(REG_HOURS_ALARM_2, hoursBCD);
+        if(res) return res;
+        res = this->writeRegister(REG_DAYS_ALARM_2, day_date_to_set_BCD);
+        if(res) return res;
+    }
+    if(res) cerr << "RTC: Unable to set the Alarm" << endl;
+    return res;
+}
+
+int RTC::setAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+{
+    if(seconds > 59 || seconds < 0)
+    {
+        cerr << "Seconds cannot be greater than 59 or less than 0" << endl;
+        return 1;
+    }
+    int res = 0;
+    res = this->setAlarm(1, minutes, hours, day_or_date, day_date);
+    if(res) return res;
+    res = this->writeRegister(REG_SECONDS_ALARM_1, decimal_to_BCD(seconds));
+    if(res) return res;
+    uint8_t readControlRegister = this->readRegister(REG_CONTROL);
+    res = this->writeRegister(REG_CONTROL, (readControlRegister | MASK_ALARM_1_INT_ENABLE));
+    if(res) return res;
+    return res;
+}
+
+int RTC::setAlarm2(uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+{
+    int res = 0;
+    res = this->setAlarm(2, minutes, hours, day_or_date, day_date);
+    if(res) return res;
+    uint8_t readControlRegister = this->readRegister(REG_CONTROL);
+    res = this->writeRegister(REG_CONTROL, (readControlRegister | MASK_ALARM_2_INT_ENABLE));
+    if(res) return res;
+    return res;
 }
