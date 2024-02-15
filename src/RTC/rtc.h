@@ -60,6 +60,25 @@
 #define REG_TEMPERATURE_MSB         0x11
 #define REG_TEMPERATURE_LSB         0x12
 
+enum rate_alarm_1
+{
+    ALARM_1_ONCE_PER_SECOND     = 0b1111,
+    ALARM_1_ONCE_PER_MINUTE     = 0b1110,
+    ALARM_1_ONCE_PER_HOUR       = 0b1100,
+    ALARM_1_ONCE_PER_DAY        = 0b1000,
+    ALARM_1_ONCE_PER_DATE       = 0b00000,
+    ALARM_1_ONCE_PER_WEEK_DAY   = 0b10000
+};
+
+enum rate_alarm_2
+{
+    ALARM_2_ONCE_PER_MINUTE     = 0b111,
+    ALARM_2_ONCE_PER_HOUR       = 0b110,
+    ALARM_2_ONCE_PER_DAY        = 0b100,
+    ALARM_2_ONCE_PER_DATE       = 0b0000,
+    ALARM_2_ONCE_PER_WEEK_DAY   = 0b1000
+};
+
 typedef struct user_time_t {
     uint8_t seconds;       
     uint8_t minutes;
@@ -70,13 +89,34 @@ typedef struct user_time_t {
     uint8_t year;
 } user_time_t;
 
+typedef struct user_alarm_t {
+    uint8_t alarm_num;
+    uint8_t seconds;
+    uint8_t minutes;
+    uint8_t hours;
+    uint8_t day_or_date;
+    union
+    {
+        uint8_t day_of_week;
+        uint8_t date_of_month;
+    } day_date;
+    union
+    {
+        rate_alarm_1 rate_1;
+        rate_alarm_2 rate_2;
+    } rate_alarm;
+} user_alarm_t;
+
 using user_time_ptr_t = std::shared_ptr<user_time_t>;
+using user_alarm_ptr_t = std::shared_ptr<user_alarm_t>;
 
 class RTC: public EE513::I2CDevice {
 private:
     uint8_t BCD_to_decimal(uint8_t BCD_value);
     uint8_t decimal_to_BCD(uint8_t decimal);
     int setAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date);
+    rate_alarm_1 getRateAlarm1(uint8_t* alarm_1_regs);
+    rate_alarm_2 getRateAlarm2(uint8_t* alarm_2_regs);
 
 public:
     RTC(unsigned int bus, unsigned int device);
@@ -86,6 +126,8 @@ public:
     float getTemperature();
     int setAlarm1(uint8_t seconds=0, uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
     int setAlarm2(uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
+    user_alarm_ptr_t getAlarm1();
+    user_alarm_ptr_t getAlarm2();
 };
 
 #endif

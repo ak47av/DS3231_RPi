@@ -11,7 +11,6 @@ using namespace std;
 
 #define HEX(x) setw(2) << setfill('0') << hex << (int)(x)
 
-
 /**
  * Constructor for the RTC class. It requires the bus number and device number.
  * The constructor opens a file handle to the I2C device, which is destroyed when
@@ -48,13 +47,13 @@ user_time_ptr_t RTC::readTime()
         return nullptr;
     }
     unsigned char *data = this->readRegisters(7, 0x00);
-    t->seconds = this->BCD_to_decimal(*data);
-    t->minutes = this->BCD_to_decimal(*(data + 1));
-    t->hours = this->BCD_to_decimal(*(data + 2));
-    t->day_of_week = this->BCD_to_decimal(*(data + 3));
-    t->date_of_month = this->BCD_to_decimal(*(data + 4));
-    t->month = this->BCD_to_decimal(*(data + 5));
-    t->year = this->BCD_to_decimal(*(data + 6));
+    t->seconds          = this->BCD_to_decimal(*data);
+    t->minutes          = this->BCD_to_decimal(*(data + 1));
+    t->hours            = this->BCD_to_decimal(*(data + 2));
+    t->day_of_week      = this->BCD_to_decimal(*(data + 3));
+    t->date_of_month    = this->BCD_to_decimal(*(data + 4));
+    t->month            = this->BCD_to_decimal(*(data + 5));
+    t->year             = this->BCD_to_decimal(*(data + 6));
     delete []data;
     return t;
 }
@@ -152,7 +151,6 @@ float RTC::getTemperature()
     return temp_msb;
 }
 
-
 int RTC::setAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     // Set alarm minutes
@@ -249,4 +247,73 @@ int RTC::setAlarm2(uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t 
     res = this->writeRegister(REG_CONTROL, (readControlRegister | MASK_ALARM_2_INT_ENABLE));
     if(res) return res;
     return res;
+}
+
+rate_alarm_1 RTC::getRateAlarm1(uint8_t* alarm_1_regs)
+{
+    uint8_t A1M4 = alarm_1_regs[3] >> 7;
+    if(A1M4 == 0)
+    {
+        uint8_t dy_dt = (alarm_1_regs[3] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
+        if(dy_dt==1) return ALARM_1_ONCE_PER_WEEK_DAY;
+        if(dy_dt==0) return ALARM_1_ONCE_PER_DATE;
+    }
+    uint8_t A1M3 = alarm_1_regs[2] >> 7;
+    if(A1M3 == 0) return ALARM_1_ONCE_PER_DAY;
+    uint8_t A1M2 = alarm_1_regs[1] >> 7;
+    if(A1M2 == 0) return ALARM_1_ONCE_PER_HOUR;
+    uint8_t A1M1 = alarm_1_regs[0] >> 7;
+    if(A1M2 == 0) return ALARM_1_ONCE_PER_MINUTE;
+    return ALARM_1_ONCE_PER_SECOND;
+}
+
+rate_alarm_2 RTC::getRateAlarm2(uint8_t* alarm_2_regs)
+{
+    uint8_t A2M4 = alarm_2_regs[2] >> 7;
+    if(A2M4 == 0)
+    {
+        uint8_t dy_dt = (alarm_2_regs[2] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
+        if(dy_dt==1) return ALARM_2_ONCE_PER_WEEK_DAY;
+        if(dy_dt==0) return ALARM_2_ONCE_PER_DATE;
+    }
+    uint8_t A2M3 = alarm_2_regs[1] >> 7;
+    if(A2M3 == 0) return ALARM_2_ONCE_PER_DAY;
+    uint8_t A2M2 = alarm_2_regs[0] >> 7;
+    if(A2M2 == 0) return ALARM_2_ONCE_PER_HOUR;
+    return ALARM_2_ONCE_PER_MINUTE;
+}
+
+user_alarm_ptr_t RTC::getAlarm1()
+{
+    user_alarm_ptr_t alarm_1 (new user_alarm_t);
+    uint8_t* alarm_1_regs = this->readRegisters(4, REG_SECONDS_ALARM_1);
+    rate_alarm_1 alarm_rate = this->getRateAlarm1(alarm_1_regs);
+    alarm_1->rate_alarm.rate_1 = alarm_rate;
+    alarm_1->alarm_num = 1;
+    alarm_1->seconds = this->BCD_to_decimal(alarm_1_regs[0] & MASK_ALARM_SECONDS);
+    alarm_1->minutes = this->BCD_to_decimal(alarm_1_regs[1] & MASK_ALARM_MINUTES);
+    alarm_1->hours   = this->BCD_to_decimal(alarm_1_regs[2] & MASK_ALARM_HOURS);
+    
+    alarm_1->day_or_date = (alarm_1_regs[3] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
+    if(alarm_1->day_or_date) alarm_1->day_date.day_of_week = (alarm_1_regs[3] & MASK_ALARM_DAY_DATE);
+    else alarm_1->day_date.date_of_month = (alarm_1_regs[3] & MASK_ALARM_DAY_DATE);
+
+    return alarm_1;
+}
+
+user_alarm_ptr_t RTC::getAlarm2()
+{
+    user_alarm_ptr_t alarm_2 (new user_alarm_t);
+    uint8_t* alarm_2_regs = this->readRegisters(3, REG_MINUTES_ALARM_2);
+    rate_alarm_2 alarm_rate = this->getRateAlarm2(alarm_2_regs);
+    alarm_2->rate_alarm.rate_2 = alarm_rate;
+    alarm_2->alarm_num = 2;
+    alarm_2->minutes = this->BCD_to_decimal(alarm_2_regs[0] & MASK_ALARM_MINUTES);
+    alarm_2->hours   = this->BCD_to_decimal(alarm_2_regs[1] & MASK_ALARM_HOURS);
+    
+    alarm_2->day_or_date = (alarm_2_regs[2] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
+    if(alarm_2->day_or_date) alarm_2->day_date.day_of_week = (alarm_2_regs[2] & MASK_ALARM_DAY_DATE);
+    else alarm_2->day_date.date_of_month = (alarm_2_regs[2] & MASK_ALARM_DAY_DATE);
+
+    return alarm_2;
 }
