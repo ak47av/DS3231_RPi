@@ -66,8 +66,7 @@ enum rate_alarm_1
     ALARM_1_ONCE_PER_MINUTE     = 0b1110,
     ALARM_1_ONCE_PER_HOUR       = 0b1100,
     ALARM_1_ONCE_PER_DAY        = 0b1000,
-    ALARM_1_ONCE_PER_DATE       = 0b00000,
-    ALARM_1_ONCE_PER_WEEK_DAY   = 0b10000
+    ALARM_1_ONCE_PER_DATE_DAY   = 0b0000,
 };
 
 enum rate_alarm_2
@@ -114,7 +113,7 @@ class RTC: public EE513::I2CDevice {
 private:
     uint8_t BCD_to_decimal(uint8_t BCD_value);
     uint8_t decimal_to_BCD(uint8_t decimal);
-    int setAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date);
+    int setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date);
     rate_alarm_1 getRateAlarm1(uint8_t* alarm_1_regs);
     rate_alarm_2 getRateAlarm2(uint8_t* alarm_2_regs);
 
@@ -124,10 +123,12 @@ public:
     int writeTime(user_time_ptr_t t);
     int writeCurrentTimeToRTC();
     float getTemperature();
-    int setAlarm1(uint8_t seconds=0, uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
-    int setAlarm2(uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
+    int setTimeAlarm1(uint8_t seconds=0, uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
+    int setTimeAlarm2(uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
     user_alarm_ptr_t getAlarm1();
     user_alarm_ptr_t getAlarm2();
+    int setRateAlarm1(rate_alarm_1 rate);
+    int setRateAlarm2(rate_alarm_2 rate);
 };
 
 #endif

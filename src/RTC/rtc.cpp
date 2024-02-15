@@ -9,7 +9,7 @@
 
 using namespace std;
 
-#define HEX(x) setw(2) << setfill('0') << hex << (int)(x)
+#define HEX(x) setw(1) << setfill('0') << hex << (int)(x)
 
 /**
  * Constructor for the RTC class. It requires the bus number and device number.
@@ -151,7 +151,7 @@ float RTC::getTemperature()
     return temp_msb;
 }
 
-int RTC::setAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+int RTC::setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     // Set alarm minutes
     if(minutes > 59 || minutes < 0)
@@ -220,7 +220,7 @@ int RTC::setAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day
     return res;
 }
 
-int RTC::setAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+int RTC::setTimeAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     if(seconds > 59 || seconds < 0)
     {
@@ -228,7 +228,7 @@ int RTC::setAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day_
         return 1;
     }
     int res = 0;
-    res = this->setAlarm(1, minutes, hours, day_or_date, day_date);
+    res = this->setTimeAlarm(1, minutes, hours, day_or_date, day_date);
     if(res) return res;
     res = this->writeRegister(REG_SECONDS_ALARM_1, decimal_to_BCD(seconds));
     if(res) return res;
@@ -238,10 +238,10 @@ int RTC::setAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day_
     return res;
 }
 
-int RTC::setAlarm2(uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+int RTC::setTimeAlarm2(uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     int res = 0;
-    res = this->setAlarm(2, minutes, hours, day_or_date, day_date);
+    res = this->setTimeAlarm(2, minutes, hours, day_or_date, day_date);
     if(res) return res;
     uint8_t readControlRegister = this->readRegister(REG_CONTROL);
     res = this->writeRegister(REG_CONTROL, (readControlRegister | MASK_ALARM_2_INT_ENABLE));
@@ -255,15 +255,14 @@ rate_alarm_1 RTC::getRateAlarm1(uint8_t* alarm_1_regs)
     if(A1M4 == 0)
     {
         uint8_t dy_dt = (alarm_1_regs[3] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
-        if(dy_dt==1) return ALARM_1_ONCE_PER_WEEK_DAY;
-        if(dy_dt==0) return ALARM_1_ONCE_PER_DATE;
+        return ALARM_1_ONCE_PER_DATE_DAY;
     }
     uint8_t A1M3 = alarm_1_regs[2] >> 7;
     if(A1M3 == 0) return ALARM_1_ONCE_PER_DAY;
     uint8_t A1M2 = alarm_1_regs[1] >> 7;
     if(A1M2 == 0) return ALARM_1_ONCE_PER_HOUR;
     uint8_t A1M1 = alarm_1_regs[0] >> 7;
-    if(A1M2 == 0) return ALARM_1_ONCE_PER_MINUTE;
+    if(A1M1 == 0) return ALARM_1_ONCE_PER_MINUTE;
     return ALARM_1_ONCE_PER_SECOND;
 }
 
@@ -316,4 +315,65 @@ user_alarm_ptr_t RTC::getAlarm2()
     else alarm_2->day_date.date_of_month = (alarm_2_regs[2] & MASK_ALARM_DAY_DATE);
 
     return alarm_2;
+}
+
+int RTC::setRateAlarm1(rate_alarm_1 rate)
+{
+    int res = 0;
+    uint8_t* alarm_regs = this->readRegisters(4, REG_SECONDS_ALARM_1);
+    uint8_t A1M1, A1M2, A1M3, A1M4;
+
+    A1M1 = rate & 0b1;
+    cout << endl;
+    cout << static_cast<int>(alarm_regs[0]) << endl;
+    if(A1M1) alarm_regs[0] |= 0x80;
+    else alarm_regs[0] &= ~(0x80);
+    cout << static_cast<int>(alarm_regs[0]) << endl;
+    res = this->writeRegister(REG_SECONDS_ALARM_1,alarm_regs[0]);
+    if(res) return 1;
+
+    A1M2 = rate & 0b10;
+    if(A1M2) alarm_regs[1] |= 0x80;
+    else alarm_regs[1] &= ~(0x80);
+    res = this->writeRegister(REG_MINUTES_ALARM_1,alarm_regs[1]);
+    if(res) return 1;
+
+    A1M3 = rate & 0b100;
+    if(A1M3) alarm_regs[2] |= 0x80;
+    else alarm_regs[2] &= ~(0x80);
+    res = this->writeRegister(REG_HOURS_ALARM_1,alarm_regs[2]);
+    if(res) return 1;
+
+    A1M4 = rate & 0b1000;
+    if(A1M4) alarm_regs[3] |= 0x80;
+    else alarm_regs[3] &= ~(0x80);
+    res = this->writeRegister(REG_DAYS_ALARM_1,alarm_regs[3]);
+    if(res) return 1;
+    return 0;
+}
+
+int RTC::setRateAlarm2(rate_alarm_2 rate)
+{
+    int res = 0;
+    uint8_t A2M4;
+    uint8_t* alarm_regs = this->readRegisters(3, REG_MINUTES_ALARM_2);
+    if((rate & 0b1000) == 0b1000)
+    {
+        uint8_t A2M1, A2M2, A2M3;
+        A2M4 = 1;
+        alarm_regs[3] |= 0x80;
+        res = this->writeRegister(REG_DAYS_ALARM_1,alarm_regs[3]);
+        if(res) return 1;
+
+        A2M2 = rate & 0b10;
+        alarm_regs[1] |= A2M2 << 6;
+        res = this->writeRegister(REG_MINUTES_ALARM_1,alarm_regs[1]);
+        if(res) return 1;
+
+        A2M3 = rate & 0b100;
+        alarm_regs[2] |= A2M3 << 5;
+        res = this->writeRegister(REG_HOURS_ALARM_1,alarm_regs[2]);
+        if(res) return 1;
+    }
+    return 0;
 }

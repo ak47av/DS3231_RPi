@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define HEX(x) setw(2) << setfill('0') << hex << (int)(x)
+#define HEX(x) setw(1) << setfill('0') << hex << (int)(x)
 
 /**
  * The function to print time from user_time_ptr_t pointer to struct
@@ -74,8 +74,26 @@ int main()
 
     // cout << HEX(rtc.getRateAlarm1()) << endl;
 
+    rtc.setTimeAlarm1(45,45,18);
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DAY);
     user_alarm_ptr_t alarm_ptr = rtc.getAlarm1();
-    printUserAlarm(alarm_ptr);
+    // printUserAlarm(alarm_ptr);
+    // rtc.debugDumpRegisters(13);
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_HOUR);
+    alarm_ptr = rtc.getAlarm1();
+    // printUserAlarm(alarm_ptr);
+    // rtc.debugDumpRegisters(13);
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_MINUTE);
+    alarm_ptr = rtc.getAlarm1();
+    // printUserAlarm(alarm_ptr);
+    // rtc.debugDumpRegisters(13);
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DATE_DAY);
+    alarm_ptr = rtc.getAlarm1();
+    // printUserAlarm(alarm_ptr);
+    // rtc.debugDumpRegisters(13);
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
+    alarm_ptr = rtc.getAlarm1();
+    // printUserAlarm(alarm_ptr);
 
     rtc.close();
 
