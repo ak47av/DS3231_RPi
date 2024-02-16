@@ -9,8 +9,17 @@ RTC_SRC=src/RTC/rtc.cpp
 RTC_INC=src/RTC/rtc.h
 RTC_OBJ=build/RTC/rtc
 
-CC = arm-unknown-linux-gnueabihf-g++
+# Determine the operating system
+UNAME_S := $(shell uname -s)
 
+# Set the default compiler
+ifeq ($(UNAME_S),Darwin)
+    CC := arm-unknown-linux-gnueabihf-g++
+else
+    CC := g++
+endif
+
+# Other Makefile rules...
 $(TARGET): $(TARGET_SRC) $(I2C_OBJ) $(RTC_OBJ)
 	$(CC) -g -o $(TARGET) $(TARGET_SRC) $(I2C_OBJ) $(RTC_OBJ) -II2CDevice -Irtc
 

@@ -360,19 +360,19 @@ int RTC::setRateAlarm2(rate_alarm_2 rate)
     A2M2 = rate & 0b1;
     if(A2M2) alarm_regs[0] |= 0x80;
     else alarm_regs[0] &= ~(0x80);
-    res = this->writeRegister(REG_MINUTES_ALARM_1,alarm_regs[0]);
+    res = this->writeRegister(REG_MINUTES_ALARM_2,alarm_regs[0]);
     if(res) return 1;
 
     A2M3 = rate & 0b10;
     if(A2M3) alarm_regs[1] |= 0x80;
     else alarm_regs[1] &= ~(0x80);
-    res = this->writeRegister(REG_HOURS_ALARM_1,alarm_regs[1]);
+    res = this->writeRegister(REG_HOURS_ALARM_2,alarm_regs[1]);
     if(res) return 1;
 
     A2M4 = rate & 0b100;
     if(A2M4) alarm_regs[2] |= 0x80;
     else alarm_regs[2] &= ~(0x80);
-    res = this->writeRegister(REG_DAYS_ALARM_1,alarm_regs[2]);
+    res = this->writeRegister(REG_DAYS_ALARM_2,alarm_regs[2]);
     if(res) return 1;
 
     return 0;

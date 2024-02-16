@@ -4,6 +4,7 @@
 #include <iomanip>
 
 #include "RTC/rtc.h"
+#include <gpiod.h>
 
 using namespace std;
 
@@ -65,35 +66,7 @@ int main()
 {
     RTC rtc(1, 0x68);
 
-    // rtc.writeCurrentTimeToRTC();
-    // user_time_ptr_t read_t = rtc.readTime();
-    // printUserTime(read_t);
-
-    // cout << rtc.setAlarm1(30, 45, 18) << endl;
-    // cout << rtc.setAlarm2(20, 19) << endl;
-
-    // cout << HEX(rtc.getRateAlarm2()) << endl;
-
-    rtc.setTimeAlarm2(10,10, 0, 17);
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DATE_DAY);
-    user_alarm_ptr_t alarm_ptr = rtc.getAlarm1();
-    rtc.debugDumpRegisters(13);
-    cout << endl;
-
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DAY);
-    alarm_ptr = rtc.getAlarm1();
-    rtc.debugDumpRegisters(13);
-    cout << endl;
-
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_HOUR);
-    alarm_ptr = rtc.getAlarm1();
-    rtc.debugDumpRegisters(13);
-    cout << endl;
-
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
-    alarm_ptr = rtc.getAlarm1();
-    rtc.debugDumpRegisters(13);
-    cout << endl;
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
 
     rtc.close();
 
