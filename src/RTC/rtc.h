@@ -74,8 +74,7 @@ enum rate_alarm_2
     ALARM_2_ONCE_PER_MINUTE     = 0b111,
     ALARM_2_ONCE_PER_HOUR       = 0b110,
     ALARM_2_ONCE_PER_DAY        = 0b100,
-    ALARM_2_ONCE_PER_DATE       = 0b0000,
-    ALARM_2_ONCE_PER_WEEK_DAY   = 0b1000
+    ALARM_2_ONCE_PER_DATE_DAY   = 0b0000,
 };
 
 typedef struct user_time_t {

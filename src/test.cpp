@@ -72,28 +72,28 @@ int main()
     // cout << rtc.setAlarm1(30, 45, 18) << endl;
     // cout << rtc.setAlarm2(20, 19) << endl;
 
-    // cout << HEX(rtc.getRateAlarm1()) << endl;
+    // cout << HEX(rtc.getRateAlarm2()) << endl;
 
-    rtc.setTimeAlarm1(45,45,18);
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DAY);
+    rtc.setTimeAlarm2(10,10, 0, 17);
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DATE_DAY);
     user_alarm_ptr_t alarm_ptr = rtc.getAlarm1();
-    // printUserAlarm(alarm_ptr);
-    // rtc.debugDumpRegisters(13);
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_HOUR);
+    rtc.debugDumpRegisters(13);
+    cout << endl;
+
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DAY);
     alarm_ptr = rtc.getAlarm1();
-    // printUserAlarm(alarm_ptr);
-    // rtc.debugDumpRegisters(13);
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_MINUTE);
+    rtc.debugDumpRegisters(13);
+    cout << endl;
+
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_HOUR);
     alarm_ptr = rtc.getAlarm1();
-    // printUserAlarm(alarm_ptr);
-    // rtc.debugDumpRegisters(13);
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DATE_DAY);
+    rtc.debugDumpRegisters(13);
+    cout << endl;
+
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
     alarm_ptr = rtc.getAlarm1();
-    // printUserAlarm(alarm_ptr);
-    // rtc.debugDumpRegisters(13);
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
-    alarm_ptr = rtc.getAlarm1();
-    // printUserAlarm(alarm_ptr);
+    rtc.debugDumpRegisters(13);
+    cout << endl;
 
     rtc.close();
 

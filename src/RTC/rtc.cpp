@@ -272,8 +272,7 @@ rate_alarm_2 RTC::getRateAlarm2(uint8_t* alarm_2_regs)
     if(A2M4 == 0)
     {
         uint8_t dy_dt = (alarm_2_regs[2] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
-        if(dy_dt==1) return ALARM_2_ONCE_PER_WEEK_DAY;
-        if(dy_dt==0) return ALARM_2_ONCE_PER_DATE;
+        return ALARM_2_ONCE_PER_DATE_DAY;
     }
     uint8_t A2M3 = alarm_2_regs[1] >> 7;
     if(A2M3 == 0) return ALARM_2_ONCE_PER_DAY;
@@ -355,25 +354,26 @@ int RTC::setRateAlarm1(rate_alarm_1 rate)
 int RTC::setRateAlarm2(rate_alarm_2 rate)
 {
     int res = 0;
-    uint8_t A2M4;
     uint8_t* alarm_regs = this->readRegisters(3, REG_MINUTES_ALARM_2);
-    if((rate & 0b1000) == 0b1000)
-    {
-        uint8_t A2M1, A2M2, A2M3;
-        A2M4 = 1;
-        alarm_regs[3] |= 0x80;
-        res = this->writeRegister(REG_DAYS_ALARM_1,alarm_regs[3]);
-        if(res) return 1;
+    uint8_t A2M2, A2M3, A2M4;
 
-        A2M2 = rate & 0b10;
-        alarm_regs[1] |= A2M2 << 6;
-        res = this->writeRegister(REG_MINUTES_ALARM_1,alarm_regs[1]);
-        if(res) return 1;
+    A2M2 = rate & 0b1;
+    if(A2M2) alarm_regs[0] |= 0x80;
+    else alarm_regs[0] &= ~(0x80);
+    res = this->writeRegister(REG_MINUTES_ALARM_1,alarm_regs[0]);
+    if(res) return 1;
 
-        A2M3 = rate & 0b100;
-        alarm_regs[2] |= A2M3 << 5;
-        res = this->writeRegister(REG_HOURS_ALARM_1,alarm_regs[2]);
-        if(res) return 1;
-    }
+    A2M3 = rate & 0b10;
+    if(A2M3) alarm_regs[1] |= 0x80;
+    else alarm_regs[1] &= ~(0x80);
+    res = this->writeRegister(REG_HOURS_ALARM_1,alarm_regs[1]);
+    if(res) return 1;
+
+    A2M4 = rate & 0b100;
+    if(A2M4) alarm_regs[2] |= 0x80;
+    else alarm_regs[2] &= ~(0x80);
+    res = this->writeRegister(REG_DAYS_ALARM_1,alarm_regs[2]);
+    if(res) return 1;
+
     return 0;
 }
