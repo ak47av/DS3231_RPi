@@ -9,6 +9,9 @@ RTC_SRC=src/RTC/rtc.cpp
 RTC_INC=src/RTC/rtc.h
 RTC_OBJ=build/RTC/rtc
 
+MQTT_CLIENT_DIR = /home/arun/paho.mqtt.embedded-c/MQTTClient/samples/linux
+MQTT_INCLUDES = -I $(MQTT_CLIENT_DIR)/../../src/ -I $(MQTT_CLIENT_DIR)/../../src/linux -I $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTPacket.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTDeserializePublish.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTConnectClient.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTSubscribeClient.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTSerializePublish.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTUnsubscribeClient.c
+
 # Determine the operating system
 UNAME_S := $(shell uname -s)
 
@@ -21,7 +24,7 @@ endif
 
 # Other Makefile rules...
 $(TARGET): $(TARGET_SRC) $(I2C_OBJ) $(RTC_OBJ)
-	$(CC) -g -o $(TARGET) $(TARGET_SRC) $(I2C_OBJ) $(RTC_OBJ) -II2CDevice -Irtc
+	$(CC) -g -o $(TARGET) $(TARGET_SRC) $(I2C_OBJ) $(RTC_OBJ) -II2CDevice -Irtc -lgpiod $(MQTT_INCLUDES)
 
 $(I2C_OBJ): $(I2C_SRC) $(I2C_INC)
 	$(CC) -g -c $(I2C_SRC) -o $(I2C_OBJ)

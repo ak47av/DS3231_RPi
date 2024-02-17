@@ -77,6 +77,14 @@ enum rate_alarm_2
     ALARM_2_ONCE_PER_DATE_DAY   = 0b0000,
 };
 
+enum sqw_frequency
+{
+    SQW_1HZ     = 0b00,
+    SQW_1KHZ    = 0b01,
+    SQW_4KHZ    = 0b10,
+    SQW_8KHZ    = 0b11
+};
+
 typedef struct user_time_t {
     uint8_t seconds;       
     uint8_t minutes;
@@ -108,7 +116,7 @@ typedef struct user_alarm_t {
 using user_time_ptr_t = std::shared_ptr<user_time_t>;
 using user_alarm_ptr_t = std::shared_ptr<user_alarm_t>;
 
-class RTC: public EE513::I2CDevice {
+class RTC: private EE513::I2CDevice {
 private:
     uint8_t BCD_to_decimal(uint8_t BCD_value);
     uint8_t decimal_to_BCD(uint8_t decimal);
@@ -128,6 +136,12 @@ public:
     user_alarm_ptr_t getAlarm2();
     int setRateAlarm1(rate_alarm_1 rate);
     int setRateAlarm2(rate_alarm_2 rate);
+    int snoozeAlarm1();
+    int snoozeAlarm2();
+    int disableAlarm1();
+    int disableAlarm2();
+    int enableSquareWave(sqw_frequency freq); // disables alarms
+    ~RTC();
 };
 
 #endif

@@ -5,10 +5,10 @@ C++ helper library for DS3231 RTC Module
 - Read Time from RTC
 - Set RPi System time to RTC
 - Set Alarms 1 and 2 on RTC
+- Turn alarms on and off
+- Set Rate of Alarms
 - Read temperature from RTC
 
 # API left to implement
-- reset alarm times (set alarms times to 0)
-- disable alarms (disable A1IE and A2IE)
 - Square wave generation
 - Square waves generation at different frequencies
