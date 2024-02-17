@@ -9,7 +9,7 @@ RTC_SRC=src/RTC/rtc.cpp
 RTC_INC=src/RTC/rtc.h
 RTC_OBJ=build/RTC/rtc
 
-MQTT_CLIENT_DIR = /home/arun/paho.mqtt.embedded-c/MQTTClient/samples/linux
+MQTT_CLIENT_DIR = src/MQTT/paho_library_files/MQTTClient/src/linux
 MQTT_INCLUDES = -I $(MQTT_CLIENT_DIR)/../../src/ -I $(MQTT_CLIENT_DIR)/../../src/linux -I $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTPacket.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTDeserializePublish.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTConnectClient.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTSubscribeClient.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTSerializePublish.c $(MQTT_CLIENT_DIR)/../../../MQTTPacket/src/MQTTUnsubscribeClient.c
 
 # Determine the operating system

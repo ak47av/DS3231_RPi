@@ -4,9 +4,14 @@
 #include <ctime>
 #include <iomanip>
 #include <gpiod.hpp>
+#include <memory.h>
 
+#include "linux.cpp"
 #include "MQTTClient.h"
 #include "RTC/rtc.h"
+
+// #define MQTTCLIENT_QOS2 1
+#define DEFAULT_STACK_SIZE -1
 
 using namespace std;
 
@@ -14,6 +19,18 @@ using namespace std;
 
 // Global variable to control the loop
 volatile bool running = true;
+
+int arrivedcount = 0;
+
+void messageArrived(MQTT::MessageData& md)
+{
+    MQTT::Message &message = md.message;
+
+    printf("Message %d arrived: qos %d, retained %d, dup %d, packetid %d\n", 
+		++arrivedcount, message.qos, message.retained, message.dup, message.id);
+    printf("Payload %.*s\n", (int)message.payloadlen, (char*)message.payload);
+}
+
 
 /**
  * The function `printUserTime` prints the values of a `user_time_ptr_t` object, which represents a
@@ -109,23 +126,82 @@ int main() {
     // Register signal handler for SIGINT
     signal(SIGINT, signal_handler);
 
-    RTC rtc(1, 0x68);
-    // user_alarm_ptr_t alarm_ptr = rtc.getAlarm1();
-    // printUserAlarm(alarm_ptr);
-
-    // alarm_ptr = rtc.getAlarm2();
-    // printUserAlarm(alarm_ptr);
-    rtc.setTimeAlarm1();
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_MINUTE);
+    IPStack ipstack = IPStack();
+    float version = 0.3;
+    const char* topic = "mbed-sample";
     
-    rtc.enableSquareWave(SQW_8KHZ);
+    printf("Version is %f\n", version);
+              
+    MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipstack);
+    
+    const char* hostname = "broker.emqx.io";
+    int port = 1883;
+    printf("Connecting to %s:%d\n", hostname, port);
+    int rc = ipstack.connect(hostname, port);
+	if (rc != 0)
+	    printf("rc from TCP connect is %d\n", rc);
+ 
+	printf("MQTT connecting\n");
+    MQTTPacket_connectData data = MQTTPacket_connectData_initializer;       
+    data.MQTTVersion = 3;
+    data.clientID.cstring = (char*)"mbed-icraggs";
+    rc = client.connect(data);
+	if (rc != 0)
+	    printf("rc from MQTT connect is %d\n", rc);
+	printf("MQTT connected\n");
+    
+    rc = client.subscribe(topic, MQTT::QOS2, messageArrived);   
+    if (rc != 0)
+        printf("rc from MQTT subscribe is %d\n", rc);
 
-    while (running) {
-        // rtc.readRegister(0x00);
-        // rtc.enableSquareWave(SQW_1KHZ);
-        // rtc.snoozeAlarm1();
-        // sleep(1);
-    }
+    MQTT::Message message;
+
+    // QoS 0
+    char buf[100];
+    sprintf(buf, "Hello World!  QoS 0 message from app version %f", version);
+    message.qos = MQTT::QOS0;
+    message.retained = false;
+    message.dup = false;
+    message.payload = (void*)buf;
+    message.payloadlen = strlen(buf)+1;
+    rc = client.publish(topic, message);
+	if (rc != 0)
+		printf("Error %d from sending QoS 0 message\n", rc);
+    else while (arrivedcount == 0)
+        client.yield(100);
+        
+    // QoS 1
+	printf("Now QoS 1\n");
+    sprintf(buf, "Hello World!  QoS 1 message from app version %f", version);
+    message.qos = MQTT::QOS1;
+    message.payloadlen = strlen(buf)+1;
+    rc = client.publish(topic, message);
+	if (rc != 0)
+		printf("Error %d from sending QoS 1 message\n", rc);
+    else while (arrivedcount == 1)
+        client.yield(100);
+        
+    // QoS 2
+    sprintf(buf, "Hello World!  QoS 2 message from app version %f", version);
+    message.qos = MQTT::QOS2;
+    message.payloadlen = strlen(buf)+1;
+    rc = client.publish(topic, message);
+	if (rc != 0)
+		printf("Error %d from sending QoS 2 message\n", rc);
+    while (arrivedcount == 2)
+        client.yield(100);
+    
+    rc = client.unsubscribe(topic);
+    if (rc != 0)
+        printf("rc from unsubscribe was %d\n", rc);
+    
+    rc = client.disconnect();
+    if (rc != 0)
+        printf("rc from disconnect was %d\n", rc);
+    
+    ipstack.disconnect();
+    
+    printf("Finishing with %d messages received\n", arrivedcount);
 
     return 0;
 }
