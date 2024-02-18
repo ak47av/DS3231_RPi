@@ -77,6 +77,18 @@ enum rate_alarm_2
     ALARM_2_ONCE_PER_DATE_DAY   = 0b0000,
 };
 
+enum CLOCK_FORMAT
+{
+    FORMAT_0_12 = 1,
+    FORMAT_0_23 = 0,
+};
+
+enum AM_OR_PM
+{
+    AM = 0,
+    PM = 1
+};
+
 enum sqw_frequency
 {
     SQW_1HZ     = 0b00,
@@ -89,6 +101,8 @@ typedef struct user_time_t {
     uint8_t seconds;       
     uint8_t minutes;
     uint8_t hours;
+    CLOCK_FORMAT clock_12hr;
+    AM_OR_PM am_pm;
     uint8_t day_of_week;
     uint8_t date_of_month;
     uint8_t month;
@@ -100,6 +114,8 @@ typedef struct user_alarm_t {
     uint8_t seconds;
     uint8_t minutes;
     uint8_t hours;
+    CLOCK_FORMAT clock_12hr;
+    AM_OR_PM am_pm;
     uint8_t day_or_date;
     union
     {
@@ -120,18 +136,18 @@ class RTC: private EE513::I2CDevice {
 private:
     uint8_t BCD_to_decimal(uint8_t BCD_value);
     uint8_t decimal_to_BCD(uint8_t decimal);
-    int setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date);
+    int setTimeAlarm(uint8_t alarm_num, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, uint8_t day_or_date, uint8_t day_date);
     rate_alarm_1 getRateAlarm1(uint8_t* alarm_1_regs);
     rate_alarm_2 getRateAlarm2(uint8_t* alarm_2_regs);
 
 public:
     RTC(unsigned int bus, unsigned int device);
-    user_time_ptr_t readTime();
-    int writeTime(user_time_ptr_t t);
-    int writeCurrentTimeToRTC();
+    user_time_ptr_t getTime();
+    int setTime(uint8_t seconds=0, uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, uint8_t day_of_week=1, uint8_t date_of_month=1, uint8_t month=1, uint8_t year=0);
+    int setCurrentTimeToRTC(CLOCK_FORMAT clock_12_hr);
     float getTemperature();
-    int setTimeAlarm1(uint8_t seconds=0, uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
-    int setTimeAlarm2(uint8_t minutes=0, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
+    int setTimeAlarm1(uint8_t seconds=0, uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
+    int setTimeAlarm2(uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
     user_alarm_ptr_t getAlarm1();
     user_alarm_ptr_t getAlarm2();
     int setRateAlarm1(rate_alarm_1 rate);

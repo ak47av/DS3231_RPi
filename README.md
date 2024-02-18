@@ -9,6 +9,9 @@ C++ helper library for DS3231 RTC Module
 - Set Rate of Alarms
 - Read temperature from RTC
 
-# API left to implement
+# API implemented but not tested
 - Square wave generation
 - Square waves generation at different frequencies
+
+# Additional functionality
+MQTT implemented to send messages from the test application to the MQTT broker in the LAN

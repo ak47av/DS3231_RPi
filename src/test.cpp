@@ -21,8 +21,12 @@ using namespace std;
 // Global variable to control the loop
 volatile bool running = true;
 
-int arrivedcount = 0;
+IPStack ipstack = IPStack();
+float version = 0.3;
+const char* topic = "DS3231";
+MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipstack);
 
+int arrivedcount = 0;
 /**
  * The function `messageArrived` prints information about an incoming MQTT message.
  * 
@@ -36,7 +40,7 @@ void messageArrived(MQTT::MessageData& md)
 
     printf("Message %d arrived: qos %d, retained %d, dup %d, packetid %d\n", 
 		++arrivedcount, message.qos, message.retained, message.dup, message.id);
-    printf("Payload %.*s\n", (int)message.payloadlen, (char*)message.payload);
+    printf("Payload:\n%.*s\n", (int)message.payloadlen, (char*)message.payload);
 }
 
 
@@ -46,9 +50,7 @@ void messageArrived(MQTT::MessageData& md)
  * 
  * @param timePtr timePtr is a pointer to a struct or class object that contains information about a
  * user's time. The struct or class should have the following members:
- * 
- * @return The function does not return any value. It has a void return type, which means it does not
- * return anything.  */
+ * */
 void printUserTime(user_time_ptr_t timePtr)
 {
     if (timePtr == nullptr)
@@ -58,7 +60,13 @@ void printUserTime(user_time_ptr_t timePtr)
     }
     cout << "Seconds: " << static_cast<int>(timePtr->seconds) << endl;
     cout << "Minutes: " << static_cast<int>(timePtr->minutes) << endl;
-    cout << "Hours: " << static_cast<int>(timePtr->hours) << endl;
+    if(timePtr->clock_12hr)
+    {
+        cout << "Hours: " << static_cast<int>(timePtr->hours);
+        if(timePtr->am_pm) cout << " PM" << endl;
+        else cout << " AM" << endl;
+    }
+    else cout << "Hours: " << static_cast<int>(timePtr->hours) << endl;
     cout << "Day of Week: " << static_cast<int>(timePtr->day_of_week) << endl;
     cout << "Date of Month: " << static_cast<int>(timePtr->date_of_month) << endl;
     cout << "Month: " << static_cast<int>(timePtr->month) << endl;
@@ -73,29 +81,81 @@ void printUserTime(user_time_ptr_t timePtr)
  */
 void printUserAlarm(user_alarm_ptr_t alarm_ptr)
 {
-    std::cout << "Seconds: " << static_cast<int>(alarm_ptr->seconds) << std::endl;
-    std::cout << "Minutes: " << static_cast<int>(alarm_ptr->minutes) << std::endl;
-    std::cout << "Hours: " << static_cast<int>(alarm_ptr->hours) << std::endl;
-    std::cout << "Day or Date: " << static_cast<int>(alarm_ptr->day_or_date) << std::endl;
+    cout << "Seconds: " << static_cast<int>(alarm_ptr->seconds) << endl;
+    cout << "Minutes: " << static_cast<int>(alarm_ptr->minutes) << endl;
+    if(alarm_ptr->clock_12hr)
+    {
+        cout << "Hours: " << static_cast<int>(alarm_ptr->hours);
+        if(alarm_ptr->am_pm) cout << " PM" << endl;
+        else cout << " AM" << endl;
+    } else cout << "Hours: " << static_cast<int>(alarm_ptr->hours) << endl;
+    cout << "Day or Date: " << static_cast<int>(alarm_ptr->day_or_date) << endl;
 
     // Print union member based on the value of 'day_or_date'
     if (alarm_ptr->day_or_date == 0)
-    {
-        std::cout << "Date of Month: " << static_cast<int>(alarm_ptr->day_date.date_of_month) << std::endl;
-    }
+        cout << "Date of Month: " << static_cast<int>(alarm_ptr->day_date.date_of_month) << endl;
     else
-    {
-        std::cout << "Day of Week: " << static_cast<int>(alarm_ptr->day_date.day_of_week) << std::endl;
-    }
+        cout << "Day of Week: " << static_cast<int>(alarm_ptr->day_date.day_of_week) << endl;
 
     // Print union member based on the type of rate alarm
     if (alarm_ptr->alarm_num == 1)
     {
-        std::cout << "Rate alarm 1: " << HEX(alarm_ptr->rate_alarm.rate_1) << std::endl;
+        cout << "Rate of alarm 1: ";
+        switch (alarm_ptr->rate_alarm.rate_1)
+        {
+        case ALARM_1_ONCE_PER_DATE_DAY:
+            if(alarm_ptr->day_or_date == 0)
+                cout << "Once on every date of the month" << endl;
+            else cout << "Once on every day of the week" << endl;
+            break;
+        
+        case ALARM_1_ONCE_PER_SECOND:
+            cout << "Once every second" << endl;
+            break;
+        
+        case ALARM_1_ONCE_PER_MINUTE:
+            cout << "Once every minute when seconds match" << endl;
+            break;
+        
+        case ALARM_1_ONCE_PER_HOUR:
+            cout << "Once every hour when minutes and seconds match" << endl;
+            break;
+        
+        case ALARM_1_ONCE_PER_DAY:
+            cout << "Once every time hours, minutes and seconds match" << endl;
+            break;
+        
+        default:
+            break;
+        }
     }
     else
     {
-        std::cout << "Rate alarm 2: " << HEX(alarm_ptr->rate_alarm.rate_2) << std::endl;
+        cout << "Rate of alarm 2: ";
+        switch (alarm_ptr->rate_alarm.rate_2)
+        {
+        case ALARM_2_ONCE_PER_DATE_DAY:
+            if(alarm_ptr->day_or_date == 0)
+                cout << "Once on every date of the month" << endl;
+            else cout << "Once on every day of the week" << endl;
+            break;
+        
+        case ALARM_2_ONCE_PER_MINUTE:
+            cout << "Once every minute when seconds match" << endl;
+            break;
+        
+        case ALARM_2_ONCE_PER_HOUR:
+            cout << "Once every hour when minutes and seconds match" << endl;
+            break;
+        
+        case ALARM_2_ONCE_PER_DAY:
+            cout << "Once every time hours, minutes and seconds match" << endl;
+            break;
+        
+        default:
+            break;
+        }
+
     }
 }
 
@@ -125,14 +185,23 @@ const string currentDateTime()
  * handler function.
  */
 void signal_handler(int signum) {
-    std::cout << "Received signal " << signum << ", exiting..." << std::endl;
+    cout << "Received signal " << signum << ", exiting..." << endl;
     running = false;
 }
 
-IPStack ipstack = IPStack();
-float version = 0.3;
-const char* topic = "DS3231";
-MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipstack);
+
+/**
+ * The function `sendMQTTMessage` sends a MQTT message with QoS 0 using the provided message, buffer,
+ * and topic.
+ * 
+ * @param message The `message` parameter is of type `MQTT::Message` and is used to store the message
+ * details such as QoS level, retained flag, duplicate flag, payload, and payload length.
+ * @param buf The `buf` parameter in the `sendMQTTMessage` function is a character array that contains
+ * the payload data to be sent in the MQTT message.
+ * @param topic The `topic` parameter in the `sendMQTTMessage` function is a pointer to a constant
+ * character array that represents the topic to which the MQTT message will be published. It specifies
+ * the destination or channel to which the message will be sent within the MQTT broker.
+ */
 void sendMQTTMessage(MQTT::Message message, char* buf, const char* topic)
 {
     message.qos = MQTT::QOS0;
@@ -143,8 +212,6 @@ void sendMQTTMessage(MQTT::Message message, char* buf, const char* topic)
     int rc = client.publish(topic, message);
 	if (rc != 0)
 		printf("Error %d from sending QoS 0 message\n", rc);
-    // else while (arrivedcount == 0)
-    //     client.yield(100);
 }
 
 int main() {
@@ -177,18 +244,52 @@ int main() {
     MQTT::Message message;
     // //////////////////// MQTT CONNECTION /////////////////////
 
+
     // SEND MQTT MESSAGES TO THE BROKER ON THE "DS3231" TOPIC
     char buf[200];
     RTC rtc(1, 0x68);
-    user_time_ptr_t t = rtc.readTime();
-    sprintf(buf, "Time from RTC\nSeconds:%d \nMinutes:%d \nHours:%d \n", t->seconds, t->minutes, t->hours);
-    sendMQTTMessage(message, buf, topic);
 
-    memset(buf,0,strlen(buf));
-    float temperature = rtc.getTemperature();
-    sprintf(buf, "Temperature from RTC: %f\n", temperature);
-    sendMQTTMessage(message, buf, topic);
+    rtc.setTimeAlarm2(10, FORMAT_0_23, PM, 10, 0, 1);
+
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DATE_DAY);
+    user_alarm_ptr_t alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
+    
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
+    alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
+
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_HOUR);
+    alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
+
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DAY);
+    alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
+
+    
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
+    alarm = rtc.getAlarm1();
+    printUserAlarm(alarm);
+
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_MINUTE);
+    alarm = rtc.getAlarm1();
+    printUserAlarm(alarm);
+
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_HOUR);
+    alarm = rtc.getAlarm1();
+    printUserAlarm(alarm);
+
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DAY);
+    alarm = rtc.getAlarm1();
+    printUserAlarm(alarm);
+
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DATE_DAY);
+    alarm = rtc.getAlarm1();
+    printUserAlarm(alarm);
     // SEND MQTT MESSAGES TO THE BROKER ON THE "DS3231" TOPIC
+
+    rtc.enableSquareWave(SQW_8KHZ);
     
     // //////////////////// Terminate MQTT CONNECTION /////////////////////
     rc = client.unsubscribe(topic);

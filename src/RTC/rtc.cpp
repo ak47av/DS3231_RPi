@@ -43,12 +43,12 @@ uint8_t RTC::BCD_to_decimal(uint8_t BCD_value)
 
 
 /**
- * The function `readTime()` reads the current time from an RTC (Real-Time Clock) and returns it as a
- * `user_time_ptr_t` object.
+ * The function `RTC::getTime()` reads time data from registers and converts it to a user-friendly
+ * format.
  * 
- * @return a pointer to a user_time_t object.
+ * @return A pointer to a memory sage shared pointer user_time_ptr_t
  */
-user_time_ptr_t RTC::readTime()
+user_time_ptr_t RTC::getTime()
 {
     user_time_ptr_t t (new user_time_t);
     if (t.get() == nullptr)
@@ -57,44 +57,83 @@ user_time_ptr_t RTC::readTime()
         return nullptr;
     }
     unsigned char *data = this->readRegisters(7, 0x00);
-    t->seconds          = this->BCD_to_decimal(*data);
-    t->minutes          = this->BCD_to_decimal(*(data + 1));
-    t->hours            = this->BCD_to_decimal(*(data + 2));
-    t->day_of_week      = this->BCD_to_decimal(*(data + 3));
-    t->date_of_month    = this->BCD_to_decimal(*(data + 4));
-    t->month            = this->BCD_to_decimal(*(data + 5));
-    t->year             = this->BCD_to_decimal(*(data + 6));
+    t->seconds          = this->BCD_to_decimal(data[0]);
+    t->minutes          = this->BCD_to_decimal(data[1]);
+
+    // evalute if 12 hr clock or 24 hr clock
+    if(data[2] & 0x40) t->clock_12hr = FORMAT_0_12;
+    if(t->clock_12hr)
+    {
+        if((data[2] & 0x20) >> 5) t->am_pm        = PM; // if 1 then PM, else AM
+        else t->am_pm       = AM;
+        t->hours        = this->BCD_to_decimal(data[2] & 0x1F);
+    }
+    else t->hours       = this->BCD_to_decimal(data[2] & 0x3F);
+
+    t->day_of_week      = this->BCD_to_decimal(data[3]);
+    t->date_of_month    = this->BCD_to_decimal(data[4]);
+    t->month            = this->BCD_to_decimal(data[5] & 0x1F);
+    t->year             = this->BCD_to_decimal(data[6]);
     delete []data;
     return t;
 }
 
 
 /**
- * The function writes the time values from a user-defined structure to the corresponding registers of
- * an RTC module.
+ * The function `setTime` in C++ sets the time and date on a real-time clock module.
  * 
- * @param t The parameter "t" is a pointer to a structure of type "user_time_ptr_t". This structure
- * contains the following fields:
+ * @param seconds The `seconds` parameter represents the seconds value of the time you want to set. It
+ * should be an integer value between 0 and 59.
+ * @param minutes The `minutes` parameter in the `setTime` function represents the minutes component of
+ * the time you want to set. It should be a value between 0 and 59 to represent the minutes of the
+ * hour.
+ * @param clock_12_hr The `clock_12_hr` parameter is a flag indicating whether the time should be set
+ * in 12-hour format. If `clock_12_hr` is true, the time will be set in 12-hour format with an
+ * additional bit for AM/PM indication. If `clock_12_hr
+ * @param am_pm The `am_pm` parameter in the `setTime` function is used to specify whether the time is
+ * in the AM or PM for a 12-hour clock format. It is of type `AM_OR_PM`, which likely is an enum or a
+ * typedef defining the values for AM and PM. When
+ * @param hours The `hours` parameter in the `setTime` function represents the hours component of the
+ * time to be set. It can be in 24-hour format or 12-hour format based on the `clock_12_hr` parameter.
+ * @param day_of_week The `day_of_week` parameter in the `setTime` function represents the day of the
+ * week. It is expected to be provided as an integer value where 1 represents Sunday, 2 represents
+ * Monday, and so on until 7 which represents Saturday.
+ * @param date_of_month The `date_of_month` parameter in the `setTime` function represents the day of
+ * the month. It is used to set the specific day within the month for the real-time clock.
+ * @param month The `month` parameter in the `setTime` function represents the month of the year. It is
+ * expected to be provided as an integer value ranging from 1 to 12, where 1 represents January and 12
+ * represents December. The function converts this integer value into Binary-Coded Decimal (
+ * @param year The `year` parameter in the `setTime` function represents the year value that you want
+ * to set in the Real-Time Clock (RTC) module. This parameter should be provided as an 8-bit unsigned
+ * integer representing the year value (e.g., 2022 would be represented as 22
  * 
  * @return 0 if successful, 1 if unsuccessful
  */
-int RTC::writeTime(user_time_ptr_t t)
+int RTC::setTime(uint8_t seconds, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, uint8_t day_of_week, uint8_t date_of_month, uint8_t month, uint8_t year)
 {
-    int res = this->writeRegister(REG_TIME_SECONDS, t->seconds);
+    int res = this->writeRegister(REG_TIME_SECONDS, this->decimal_to_BCD(seconds));
     if(res) return res;
-    res = this->writeRegister(REG_TIME_MINUTES, t->minutes);
+    res = this->writeRegister(REG_TIME_MINUTES, this->decimal_to_BCD(minutes));
     if(res) return res;
-    res = this->writeRegister(REG_TIME_HOURS, t->hours);
+    if(clock_12_hr)
+    {
+        uint8_t reg_value = this->decimal_to_BCD(hours) | 0x40;
+        if(am_pm) reg_value |= 0x20;
+        res = this->writeRegister(REG_TIME_HOURS, reg_value);
+        if(res) return res;
+    }
+    else {
+        res = this->writeRegister(REG_TIME_HOURS, this->decimal_to_BCD(hours));
+        if(res) return res;
+    }
+    res = this->writeRegister(REG_TIME_DAY_OF_WEEK, this->decimal_to_BCD(day_of_week));
     if(res) return res;
-    res = this->writeRegister(REG_TIME_DAY_OF_WEEK, t->day_of_week);
+    res = this->writeRegister(REG_TIME_DATE_OF_MONTH, this->decimal_to_BCD(date_of_month));
     if(res) return res;
-    res = this->writeRegister(REG_TIME_DATE_OF_MONTH, t->date_of_month);
+    res = this->writeRegister(REG_TIME_MONTH, this->decimal_to_BCD(month));
     if(res) return res;
-    res = this->writeRegister(REG_TIME_MONTH, t->month);
+    res = this->writeRegister(REG_TIME_YEAR, this->decimal_to_BCD(year));
     if(res) return res;
-    res = this->writeRegister(REG_TIME_YEAR, t->year);
-    if(res) return res;
-    if(res) cerr << "RTC: Unable to write time to module" << endl;
     return res;
 }
 
@@ -115,29 +154,46 @@ uint8_t RTC::decimal_to_BCD(uint8_t decimal)
 }
 
 /**
- * The function "writeCurrentTimeToRTC" writes the current system time to a Real-Time Clock (RTC)
- * module.
+ * The function `setCurrentTimeToRTC` sets the current system time to a real-time clock module in C++,
+ * handling 12-hour clock format and error checking.
  * 
- * @return an integer value. If the writeTime function returns true (indicating an error), the function
- * returns 1. Otherwise, it returns 0.
+ * @param clock_12_hr The `clock_12_hr` parameter is used to determine whether the time should be set
+ * in 12-hour format or 24-hour format. If `clock_12_hr` is false, the time will be set in 24-hour
+ * format. If `clock_12_hr` is true,
+ * 
+ * @return 0 if successful, 1 if unsuccessful
  */
-int RTC::writeCurrentTimeToRTC()
+int RTC::setCurrentTimeToRTC(CLOCK_FORMAT clock_12_hr)
 {
     time_t now = time(0);
     struct tm tstruct;
     tstruct = *localtime(&now);
 
-    user_time_ptr_t t (new user_time_t);
-    t->seconds = decimal_to_BCD(tstruct.tm_sec);
-    t->minutes = decimal_to_BCD(tstruct.tm_min);
-    t->hours = decimal_to_BCD(tstruct.tm_hour);
-    t->day_of_week = decimal_to_BCD(tstruct.tm_wday+1);
-    t->date_of_month = decimal_to_BCD(tstruct.tm_mday);
-    t->month = decimal_to_BCD(tstruct.tm_mon + 1);
+    int seconds         = tstruct.tm_sec;
+    int minutes         = tstruct.tm_min;
+    AM_OR_PM am_pm      = AM;
+    int hours;
+    if(!clock_12_hr)
+    {
+        hours           = tstruct.tm_hour;
+    } else {
+        if(tstruct.tm_hour > 12)
+        {
+            hours   = tstruct.tm_hour - 12;
+            am_pm   = PM;
+        } else
+        {
+           hours = tstruct.tm_hour;
+           am_pm = AM;
+        }
+    }
+    int day_of_week     = tstruct.tm_wday+1;
+    int date_of_month   = tstruct.tm_mday;
+    int month           = tstruct.tm_mon + 1;
 
-    int yearMod100 = tstruct.tm_year % 100;
-    t->year = decimal_to_BCD(yearMod100);
-    if(this->writeTime(t))
+    int yearMod100      = tstruct.tm_year % 100;
+    int year            = yearMod100;
+    if(this->setTime(seconds, minutes, clock_12_hr, am_pm, hours, day_of_week, date_of_month, month, year))
     {
         cerr << "RTC: Unable to write system time to module" << endl;
         return 1;
@@ -178,21 +234,29 @@ float RTC::getTemperature()
 }
 
 /**
- * The function sets the time and date for an alarm on an RTC (Real-Time Clock) device.
+ * The function `setTimeAlarm` in C++ sets the time alarm based on specified parameters such as
+ * minutes, hours, day or date, and alarm number.
  * 
- * @param alarm_num The alarm number to set. It can be either 1 or 2.
- * @param minutes The "minutes" parameter represents the minutes value for the alarm. It should be an
- * integer between 0 and 59.
- * @param hours The "hours" parameter represents the hour value for setting the alarm. It should be an
- * integer value between 0 and 23, where 0 represents midnight and 23 represents 11 PM.
- * @param day_or_date The parameter "day_or_date" is used to specify whether the alarm is set for a
- * specific day of the week (1) or a specific date of the month (0).
- * @param day_date The "day_date" parameter in the code represents either the day of the week or the
- * date of the month, depending on the value of the "day_or_date" parameter.
+ * @param alarm_num The `alarm_num` parameter in the `setTimeAlarm` function is used to specify which
+ * alarm to set, either alarm 1 or alarm 2. It is an integer parameter that should be either 1 or 2 to
+ * indicate the alarm number.
+ * @param minutes The `minutes` parameter in the `setTimeAlarm` function represents the minutes value
+ * for setting the alarm. It should be an integer value between 0 and 59.
+ * @param clock_12_hr The parameter `clock_12_hr` in the `setTimeAlarm` function is used to specify
+ * whether the clock is in 12-hour format or not.
+ * @param am_pm The `am_pm` parameter in the `setTimeAlarm` function is used to specify whether the
+ * alarm time is in the AM or PM for a 12-hour clock format. It is of type `AM_OR_PM`, which
+ * represents an enumeration with two possible values - `AM` and `PM`
+ * @param hours The `hours` parameter in the `setTimeAlarm` function represents the hour at which the
+ * alarm should trigger.
+ * @param day_or_date The `day_or_date` parameter in the `setTimeAlarm` function is used to specify
+ * whether the alarm should be set based on a day of the week or a specific date in the month.
+ * @param day_date The `day_date` parameter in the `setTimeAlarm` function represents either the day of
+ * the week or the date of the month, depending on the value of the `day_or_date` parameter.
  * 
- * @return an integer value.
+ * @return 0 if successful, 1 if unsuccessful
  */
-int RTC::setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+int RTC::setTimeAlarm(uint8_t alarm_num, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     // Set alarm minutes
     if(minutes > 59 || minutes < 0)
@@ -200,7 +264,7 @@ int RTC::setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t
         cerr << "Minutes can't be more than 59 or less than 0" << endl;
         return 1;
     }
-    unsigned char minutesBCD = (decimal_to_BCD(minutes));
+    unsigned char minutesBCD = decimal_to_BCD(minutes);
 
     // Set alarm hours
     if(hours > 23 || hours < 0)
@@ -208,10 +272,17 @@ int RTC::setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t
         cerr << "Hours cannot be more than 23 or less than 0" << endl;
         return 1;
     }
-    unsigned char hoursBCD = (decimal_to_BCD(hours));
+    unsigned char hoursBCD;
+    if(clock_12_hr)
+    {
+        hoursBCD = this->decimal_to_BCD(hours) | 0x40;
+        if(am_pm) hoursBCD |= 0x20;
+    } else {
+        hoursBCD = this->decimal_to_BCD(hours);
+    }
 
     // Set Alarm day or date
-    uint8_t day_date_to_set = 0;
+    unsigned char day_date_to_set = 0;
     if(day_or_date == 1)
     {
         day_date_to_set |= MASK_ALARM_DAY_OR_DATEINV;
@@ -261,24 +332,30 @@ int RTC::setTimeAlarm(uint8_t alarm_num, uint8_t minutes, uint8_t hours, uint8_t
     return res;
 }
 
+
 /**
- * The function sets the time on alarm 1 on an RTC device by validating the input parameters, setting the
- * alarm time, enabling the alarm interrupt, and returning the result.
+ * The function `setTimeAlarm1` sets the alarm time for Alarm 1 in a real-time clock module in C++,
+ * including validation checks and enabling the alarm interrupt.
  * 
- * @param seconds The seconds parameter is an integer that represents the desired value for the seconds
- * field of the alarm time. It should be between 0 and 59.
- * @param minutes The "minutes" parameter is the value of the minutes at which the alarm should
- * trigger.
- * @param hours The "hours" parameter represents the hour value for setting the time alarm. It should
- * be a value between 0 and 23, representing the hours in a 24-hour format.
- * @param day_or_date The "day_or_date" pn is used to specify
- * whether the alarm should trigger on a specific day of the week or on a specific date of the month.
- * @param day_date The "day_date" parameter is used to specify whether
- * the alarm should trigger on a specific day of the week or on a specific date of the month.
+ * @param seconds The `seconds` parameter in the `setTimeAlarm1` function represents the seconds value
+ * for setting the alarm. 
+ * @param minutes The `minutes` parameter in the `setTimeAlarm1` function represents the minutes value
+ * at which the alarm should trigger.
+ * @param clock_12_hr The parameter `clock_12_hr` is used to specify whether the time format is in
+ * 12-hour or 24-hour format.
+ * @param am_pm The `am_pm` parameter in the `setTimeAlarm1` function is used to specify whether the
+ * alarm time is in the AM or PM for a 12-hour clock format.
+ * @param hours The `hours` parameter in the `setTimeAlarm1` function represents the hour at which the
+ * alarm should trigger. 
+ * @param day_or_date The `day_or_date` parameter in the `setTimeAlarm1` function is used to specify
+ * whether the alarm should trigger based on the day of the week or the date of the month. 
+ * @param day_date The `day_date` parameter in the `setTimeAlarm1` function is used to specify whether
+ * the alarm should trigger on a specific day of the week (1-7) or a specific date of the month (1-31),
+ * depending on the value of the `day_or_date` parameter
  * 
- * @return an integer value.
+ * @return 0 if successful, 1 if unsuccessful
  */
-int RTC::setTimeAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+int RTC::setTimeAlarm1(uint8_t seconds, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     if(seconds > 59 || seconds < 0)
     {
@@ -286,7 +363,7 @@ int RTC::setTimeAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t 
         return 1;
     }
     int res = 0;
-    res = this->setTimeAlarm(1, minutes, hours, day_or_date, day_date);
+    res = this->setTimeAlarm(1, minutes, clock_12_hr, am_pm, hours, day_or_date, day_date);
     if(res) return res;
     res = this->writeRegister(REG_SECONDS_ALARM_1, decimal_to_BCD(seconds));
     if(res) return res;
@@ -298,24 +375,28 @@ int RTC::setTimeAlarm1(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t 
 
 
 /**
- * The function sets the time on alarm 1 on an RTC device by validating the input parameters, setting the
- * alarm time, enabling the alarm interrupt, and returning the result.
+ * The function `setTimeAlarm2` sets the alarm time for alarm 2 and enables the corresponding
+ * interrupt.
  * 
- * @param minutes The "minutes" parameter is the value of the minutes at which the alarm should
- * trigger.
- * @param hours The "hours" parameter represents the hour value for setting the time alarm. It should
- * be a value between 0 and 23, representing the hours in a 24-hour format.
- * @param day_or_date The "day_or_date" parameter is used to specify
- * whether the alarm should trigger on a specific day of the week or on a specific date of the month.
- * @param day_date The "day_date" parameter is used to specify whether
- * the alarm should trigger on a specific day of the week or on a specific date of the month.
+ * @param minutes The `minutes` parameter in the `setTimeAlarm2` function represents the minutes value
+ * at which the alarm should trigger.
+ * @param clock_12_hr The parameter `clock_12_hr` in the `setTimeAlarm2` function is used to specify
+ * whether the time format is 12-hour or 24-hour format.
+ * @param am_pm The `am_pm` parameter in the `setTimeAlarm2` function is used to specify whether the
+ * alarm time is in the AM or PM for a 12-hour clock format. It can have the values `AM` or `PM`.
+ * @param hours The `hours` parameter in the `setTimeAlarm2` function represents the hour at which the
+ * alarm should trigger.
+ * @param day_or_date The `day_or_date` parameter in the `setTimeAlarm2` function is used to specify
+ * whether the alarm should trigger based on the day of the week or the date of the month. 
+ * @param day_date The `day_date` parameter in the `setTimeAlarm2` function represents the day of the
+ * month or the date of the month for which the alarm is being set. 
  * 
- * @return an integer value.
+ * @return 0 if successful, 1 if unsucessful
  */
-int RTC::setTimeAlarm2(uint8_t minutes, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
+int RTC::setTimeAlarm2(uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, uint8_t day_or_date, uint8_t day_date)
 {
     int res = 0;
-    res = this->setTimeAlarm(2, minutes, hours, day_or_date, day_date);
+    res = this->setTimeAlarm(2, minutes,clock_12_hr, am_pm, hours, day_or_date, day_date);
     if(res) return res;
     uint8_t readControlRegister = this->readRegister(REG_CONTROL);
     res = this->writeRegister(REG_CONTROL, (readControlRegister | MASK_ALARM_2_INT_ENABLE | MASK_INTERRUPT_CONTROL));
@@ -385,7 +466,7 @@ rate_alarm_2 RTC::getRateAlarm2(uint8_t* alarm_2_regs)
 /**
  * The function `getAlarm1` returns a pointer to a struct containing information about alarm 1.
  * 
- * @return a pointer to a user_alarm_t object.
+ * @return a memory safe shared pointer to a user_alarm_t struct
  */
 user_alarm_ptr_t RTC::getAlarm1()
 {
@@ -396,7 +477,15 @@ user_alarm_ptr_t RTC::getAlarm1()
     alarm_1->alarm_num = 1;
     alarm_1->seconds = this->BCD_to_decimal(alarm_1_regs[0] & MASK_ALARM_SECONDS);
     alarm_1->minutes = this->BCD_to_decimal(alarm_1_regs[1] & MASK_ALARM_MINUTES);
-    alarm_1->hours   = this->BCD_to_decimal(alarm_1_regs[2] & MASK_ALARM_HOURS);
+
+    if(alarm_1_regs[2] & 0x40) alarm_1->clock_12hr = FORMAT_0_12;
+    if(alarm_1->clock_12hr)
+    {
+        if((alarm_1_regs[2] & 0x20) >> 5) alarm_1->am_pm = PM;
+        else alarm_1->am_pm = AM;
+        alarm_1->hours   = this->BCD_to_decimal(alarm_1_regs[2] & 0x1F);
+    }
+    else alarm_1->hours = this->BCD_to_decimal(alarm_1_regs[2] & 0x3F);
     
     alarm_1->day_or_date = (alarm_1_regs[3] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
     if(alarm_1->day_or_date) alarm_1->day_date.day_of_week = (alarm_1_regs[3] & MASK_ALARM_DAY_DATE);
@@ -409,7 +498,7 @@ user_alarm_ptr_t RTC::getAlarm1()
  * The function "getAlarm2" returns a pointer to a user_alarm_t object that contains information about
  * the second alarm.
  * 
- * @return a pointer to a user_alarm_t object.
+ * @return a memory safe shared pointer to a user_alarm_t struct.
  */
 user_alarm_ptr_t RTC::getAlarm2()
 {
@@ -419,7 +508,13 @@ user_alarm_ptr_t RTC::getAlarm2()
     alarm_2->rate_alarm.rate_2 = alarm_rate;
     alarm_2->alarm_num = 2;
     alarm_2->minutes = this->BCD_to_decimal(alarm_2_regs[0] & MASK_ALARM_MINUTES);
-    alarm_2->hours   = this->BCD_to_decimal(alarm_2_regs[1] & MASK_ALARM_HOURS);
+    if(alarm_2->clock_12hr)
+    {
+        if((alarm_2_regs[1] & 0x20) >> 5) alarm_2->am_pm = PM;
+        else alarm_2->am_pm = AM;
+        alarm_2->hours   = this->BCD_to_decimal(alarm_2_regs[1] & 0x1F);
+    }
+    else alarm_2->hours = this->BCD_to_decimal(alarm_2_regs[2] & 0x3F);
     
     alarm_2->day_or_date = (alarm_2_regs[2] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
     if(alarm_2->day_or_date) alarm_2->day_date.day_of_week = (alarm_2_regs[2] & MASK_ALARM_DAY_DATE);
@@ -436,8 +531,7 @@ user_alarm_ptr_t RTC::getAlarm2()
  * representing the desired alarm rate for alarm 1. The function sets the alarm rate by
  * modifying specific bits in the alarm registers.
  * 
- * @return an integer value. If the function is successful, it returns 0. If there is an error during
- * the write operation, it returns 1.
+ * @return 0 if successful, 1 if unsuccesful
  */
 int RTC::setRateAlarm1(rate_alarm_1 rate)
 {
@@ -447,10 +541,8 @@ int RTC::setRateAlarm1(rate_alarm_1 rate)
 
     A1M1 = rate & 0b1;
     cout << endl;
-    cout << static_cast<int>(alarm_regs[0]) << endl;
     if(A1M1) alarm_regs[0] |= 0x80;
     else alarm_regs[0] &= ~(0x80);
-    cout << static_cast<int>(alarm_regs[0]) << endl;
     res = this->writeRegister(REG_SECONDS_ALARM_1,alarm_regs[0]);
     if(res) return 1;
 
@@ -481,8 +573,7 @@ int RTC::setRateAlarm1(rate_alarm_1 rate)
  * @param rate The "rate" parameter is of type "rate_alarm_2", 
  * representing different rate options for the alarm 2.
  * 
- * @return an integer value. If the function is successful, it returns 0. If there is an error during
- * the write operation, it returns 1.
+ * @return 0 if successful, 1 if unsucessful
  */
 int RTC::setRateAlarm2(rate_alarm_2 rate)
 {
@@ -514,10 +605,7 @@ int RTC::setRateAlarm2(rate_alarm_2 rate)
 /**
  * The function snoozeAlarm1 in C++ snoozes Alarm 1 by clearing the alarm flag in the status register.
  * 
- * @return The `snoozeAlarm1()` function returns an integer value, which is the result of writing to
- * the status register to snooze Alarm 1. The return value indicates the success or failure of the
- * operation. If the operation is successful, it will return 0. If there is an error during the write
- * operation, it will return a non-zero value.
+ * @return 0 if successful, 1 if unsuccessful
  */
 int RTC::snoozeAlarm1()
 {
@@ -531,10 +619,7 @@ int RTC::snoozeAlarm1()
 /**
  * The function snoozeAlarm2 in C++ snoozes Alarm 2 by clearing the alarm flag in the status register.
  * 
- * @return The `snoozeAlarm2()` function returns an integer value, which is the result of writing to
- * the status register to snooze Alarm 1. The return value indicates the success or failure of the
- * operation. If the operation is successful, it will return 0. If there is an error during the write
- * operation, it will return a non-zero value.
+ * @return 0 if successful, 1 if unsuccessful
  */
 int RTC::snoozeAlarm2()
 {
@@ -549,10 +634,7 @@ int RTC::snoozeAlarm2()
 /**
  * The function `disableAlarm1` in C++ disables Alarm 1 on an RTC device.
  * 
- * @return The `disableAlarm1()` function returns an integer value. This value represents the result of
- * writing to the control register to disable Alarm 1. If the write operation is successful, the
- * function will return 0. If there is an issue with the write operation, it will return a non-zero
- * value, indicating an error.
+ * @return 0 if successful, 1 if unsuccessful
  */
 int RTC::disableAlarm1()
 {
@@ -566,9 +648,7 @@ int RTC::disableAlarm1()
 /**
  * This function disables Alarm 2 in an RTC module by updating the control register.
  * 
- * @return The function `disableAlarm2()` is returning an integer value. This integer value represents
- * the result of the operation to disable Alarm 2. If the operation is successful, it will return 0. If
- * there is an error or the operation fails, it will return a non-zero value.
+ * @return 0 if successful, 1 if unsuccessful
  */
 int RTC::disableAlarm2()
 {
@@ -581,23 +661,20 @@ int RTC::disableAlarm2()
 
 /**
  * The function `enableSquareWave` in the RTC class enables a square wave output at a specified
- * frequency.
+ * frequency. It has not been tested (due to the testing chip being different than the original)
  * 
  * @param freq The `freq` parameter in the `enableSquareWave` function is of type `sqw_frequency`,
  * which is an enum representing different frequencies for the square wave output
- * of the Real-Time Clock (RTC) module.
- * `
+ * of the RTC module.
  * 
- * @return The function `enableSquareWave` is returning an integer value, which is the result of
- * writing the updated control register value to the RTC device. This integer value indicates the
- * success or failure of the operation. If the operation is successful, it will return 0, otherwise it
- * will return a non-zero value.
+ * @return 0 if successful, 1 if unsuccessful
  */
 int RTC::enableSquareWave(sqw_frequency freq)
 {
     uint8_t control_reg = this->readRegister(REG_CONTROL);
     control_reg &= ~(MASK_ALARM_1_INT_ENABLE | MASK_ALARM_2_INT_ENABLE | MASK_INTERRUPT_CONTROL | MASK_RATE_SELECT_1 | MASK_RATE_SELECT_2);
     control_reg |= (freq << 3);
+    control_reg |= MASK_BAT_BACKUP_SQW_ENABLE;
     int res = this->writeRegister(REG_CONTROL, control_reg);
     if(res) cerr << "RTC: Unable to enable Square wave" << endl;
     return res;
