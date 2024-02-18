@@ -5,12 +5,13 @@
 #include <iomanip>
 #include <gpiod.hpp>
 #include <memory.h>
+#include <arpa/inet.h>
 
 #include "linux.cpp"
 #include "MQTTClient.h"
 #include "RTC/rtc.h"
 
-// #define MQTTCLIENT_QOS2 1
+#define MQTTCLIENT_QOS2 1
 #define DEFAULT_STACK_SIZE -1
 
 using namespace std;
@@ -22,6 +23,13 @@ volatile bool running = true;
 
 int arrivedcount = 0;
 
+/**
+ * The function `messageArrived` prints information about an incoming MQTT message.
+ * 
+ * @param md In the `messageArrived` function, `md` is of type `MQTT::MessageData&`, which is a
+ * reference to a structure containing information about the arrived message. This structure typically
+ * includes the message itself along with other metadata related to the message.
+ */
 void messageArrived(MQTT::MessageData& md)
 {
     MQTT::Message &message = md.message;
@@ -40,8 +48,7 @@ void messageArrived(MQTT::MessageData& md)
  * user's time. The struct or class should have the following members:
  * 
  * @return The function does not return any value. It has a void return type, which means it does not
- * return anything.
- */
+ * return anything.  */
 void printUserTime(user_time_ptr_t timePtr)
 {
     if (timePtr == nullptr)
@@ -122,19 +129,32 @@ void signal_handler(int signum) {
     running = false;
 }
 
+IPStack ipstack = IPStack();
+float version = 0.3;
+const char* topic = "DS3231";
+MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipstack);
+void sendMQTTMessage(MQTT::Message message, char* buf, const char* topic)
+{
+    message.qos = MQTT::QOS0;
+    message.retained = false;
+    message.dup = false;
+    message.payload = (void*)buf;
+    message.payloadlen = strlen(buf)+1;
+    int rc = client.publish(topic, message);
+	if (rc != 0)
+		printf("Error %d from sending QoS 0 message\n", rc);
+    // else while (arrivedcount == 0)
+    //     client.yield(100);
+}
+
 int main() {
     // Register signal handler for SIGINT
     signal(SIGINT, signal_handler);
 
-    IPStack ipstack = IPStack();
-    float version = 0.3;
-    const char* topic = "mbed-sample";
-    
+
+    // //////////////////// MQTT CONNECTION /////////////////////
     printf("Version is %f\n", version);
-              
-    MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipstack);
-    
-    const char* hostname = "broker.emqx.io";
+    const char* hostname = "192.168.1.58";
     int port = 1883;
     printf("Connecting to %s:%d\n", hostname, port);
     int rc = ipstack.connect(hostname, port);
@@ -144,7 +164,7 @@ int main() {
 	printf("MQTT connecting\n");
     MQTTPacket_connectData data = MQTTPacket_connectData_initializer;       
     data.MQTTVersion = 3;
-    data.clientID.cstring = (char*)"mbed-icraggs";
+    data.clientID.cstring = (char*)"magdalenabay";
     rc = client.connect(data);
 	if (rc != 0)
 	    printf("rc from MQTT connect is %d\n", rc);
@@ -155,42 +175,22 @@ int main() {
         printf("rc from MQTT subscribe is %d\n", rc);
 
     MQTT::Message message;
+    // //////////////////// MQTT CONNECTION /////////////////////
 
-    // QoS 0
-    char buf[100];
-    sprintf(buf, "Hello World!  QoS 0 message from app version %f", version);
-    message.qos = MQTT::QOS0;
-    message.retained = false;
-    message.dup = false;
-    message.payload = (void*)buf;
-    message.payloadlen = strlen(buf)+1;
-    rc = client.publish(topic, message);
-	if (rc != 0)
-		printf("Error %d from sending QoS 0 message\n", rc);
-    else while (arrivedcount == 0)
-        client.yield(100);
-        
-    // QoS 1
-	printf("Now QoS 1\n");
-    sprintf(buf, "Hello World!  QoS 1 message from app version %f", version);
-    message.qos = MQTT::QOS1;
-    message.payloadlen = strlen(buf)+1;
-    rc = client.publish(topic, message);
-	if (rc != 0)
-		printf("Error %d from sending QoS 1 message\n", rc);
-    else while (arrivedcount == 1)
-        client.yield(100);
-        
-    // QoS 2
-    sprintf(buf, "Hello World!  QoS 2 message from app version %f", version);
-    message.qos = MQTT::QOS2;
-    message.payloadlen = strlen(buf)+1;
-    rc = client.publish(topic, message);
-	if (rc != 0)
-		printf("Error %d from sending QoS 2 message\n", rc);
-    while (arrivedcount == 2)
-        client.yield(100);
+    // SEND MQTT MESSAGES TO THE BROKER ON THE "DS3231" TOPIC
+    char buf[200];
+    RTC rtc(1, 0x68);
+    user_time_ptr_t t = rtc.readTime();
+    sprintf(buf, "Time from RTC\nSeconds:%d \nMinutes:%d \nHours:%d \n", t->seconds, t->minutes, t->hours);
+    sendMQTTMessage(message, buf, topic);
+
+    memset(buf,0,strlen(buf));
+    float temperature = rtc.getTemperature();
+    sprintf(buf, "Temperature from RTC: %f\n", temperature);
+    sendMQTTMessage(message, buf, topic);
+    // SEND MQTT MESSAGES TO THE BROKER ON THE "DS3231" TOPIC
     
+    // //////////////////// Terminate MQTT CONNECTION /////////////////////
     rc = client.unsubscribe(topic);
     if (rc != 0)
         printf("rc from unsubscribe was %d\n", rc);
@@ -200,8 +200,9 @@ int main() {
         printf("rc from disconnect was %d\n", rc);
     
     ipstack.disconnect();
+    // //////////////////// Terminate MQTT CONNECTION /////////////////////
     
-    printf("Finishing with %d messages received\n", arrivedcount);
+    // printf("Finishing with %d messages received\n", arrivedcount);
 
     return 0;
 }
