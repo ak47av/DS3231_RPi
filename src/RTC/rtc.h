@@ -60,6 +60,7 @@
 #define REG_TEMPERATURE_MSB         0x11
 #define REG_TEMPERATURE_LSB         0x12
 
+
 enum rate_alarm_1
 {
     ALARM_1_ONCE_PER_SECOND     = 0b1111,
@@ -87,6 +88,12 @@ enum AM_OR_PM
 {
     AM = 0,
     PM = 1
+};
+
+enum DAY_OR_DATE
+{
+    DATE_OF_MONTH = 0,
+    DAY_OF_WEEK  = 1
 };
 
 enum sqw_frequency
@@ -129,6 +136,7 @@ typedef struct user_alarm_t {
     } rate_alarm;
 } user_alarm_t;
 
+// Shared pointers for memory safe operation
 using user_time_ptr_t = std::shared_ptr<user_time_t>;
 using user_alarm_ptr_t = std::shared_ptr<user_alarm_t>;
 
@@ -136,7 +144,7 @@ class RTC: private EE513::I2CDevice {
 private:
     uint8_t BCD_to_decimal(uint8_t BCD_value);
     uint8_t decimal_to_BCD(uint8_t decimal);
-    int setTimeAlarm(uint8_t alarm_num, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, uint8_t day_or_date, uint8_t day_date);
+    int setTimeAlarm(uint8_t alarm_num, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, DAY_OR_DATE day_or_date, uint8_t day_date);
     rate_alarm_1 getRateAlarm1(uint8_t* alarm_1_regs);
     rate_alarm_2 getRateAlarm2(uint8_t* alarm_2_regs);
 
@@ -146,16 +154,18 @@ public:
     int setTime(uint8_t seconds=0, uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, uint8_t day_of_week=1, uint8_t date_of_month=1, uint8_t month=1, uint8_t year=0);
     int setCurrentTimeToRTC(CLOCK_FORMAT clock_12_hr);
     float getTemperature();
-    int setTimeAlarm1(uint8_t seconds=0, uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
-    int setTimeAlarm2(uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, uint8_t day_or_date=0, uint8_t day_date=1);
+    int setTimeAlarm1(uint8_t seconds=0, uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, DAY_OR_DATE day_or_date=DAY_OF_WEEK, uint8_t day_date=1);
+    int setTimeAlarm2(uint8_t minutes=0, CLOCK_FORMAT clock_12_hr=FORMAT_0_23, AM_OR_PM am_pm=AM, uint8_t hours=0, DAY_OR_DATE day_or_date=DAY_OF_WEEK, uint8_t day_date=1);
     user_alarm_ptr_t getAlarm1();
     user_alarm_ptr_t getAlarm2();
     int setRateAlarm1(rate_alarm_1 rate);
     int setRateAlarm2(rate_alarm_2 rate);
     int snoozeAlarm1();
     int snoozeAlarm2();
-    int disableAlarm1();
-    int disableAlarm2();
+    int enableInterruptAlarm1();
+    int enableInterruptAlarm2();
+    int disableInterruptAlarm1();
+    int disableInterruptAlarm2();
     int enableSquareWave(sqw_frequency freq); // disables alarms
     ~RTC();
 };

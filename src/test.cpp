@@ -6,21 +6,41 @@
 #include <gpiod.hpp>
 #include <memory.h>
 #include <arpa/inet.h>
+#include <thread>
+#include <chrono>
 
-#include "linux.cpp"
+#include "linux.cpp"    // PAHO MQTT Dependency
 #include "MQTTClient.h"
 #include "RTC/rtc.h"
-
-#define MQTTCLIENT_QOS2 1
-#define DEFAULT_STACK_SIZE -1
 
 using namespace std;
 
 #define HEX(x) setw(1) << setfill('0') << hex << (int)(x)
 
+///////////////// RUN THE TESTS BELOW ONE BY ONE ///////////////////////////
+
+// #define TEST_WITH_MQTT               // REQUIRES A CONNECTION TO AN MQTT BROKER
+// #define TEST_TIME_API
+#define TEST_ALARM_API
+// #define TEST_ALARM_EVERY_SECOND      // Ctrl+C to stop alarm for 5 seconds  
+// #define TEST_ALARM_EVERY_MINUTE      // RISING EDGE EVERY MINUTE
+// #define TEST_TEMPERATURE
+// #define TEST_SQW
+
+///////////////// RUN THE TESTS BELOW ONE BY ONE ///////////////////////////
+
+// MQTT PARAMETERS
+#define HOSTNAME    "192.168.1.58"
+#define PORT        1883
+#define DEVICE_ID   "DS3231_Raspberry_Pi_5"
+#define TOPIC       "temperature"
+
 // Global variable to control the loop
 volatile bool running = true;
 
+#ifdef TEST_WITH_MQTT
+
+/* Setting up some initial configurations for the MQTT client.*/
 IPStack ipstack = IPStack();
 float version = 0.3;
 const char* topic = "DS3231";
@@ -28,7 +48,7 @@ MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipsta
 
 int arrivedcount = 0;
 /**
- * The function `messageArrived` prints information about an incoming MQTT message.
+ * Prints information about an incoming MQTT message.
  * 
  * @param md In the `messageArrived` function, `md` is of type `MQTT::MessageData&`, which is a
  * reference to a structure containing information about the arrived message. This structure typically
@@ -43,13 +63,33 @@ void messageArrived(MQTT::MessageData& md)
     printf("Payload:\n%.*s\n", (int)message.payloadlen, (char*)message.payload);
 }
 
+/**
+ * Sends a MQTT message with QoS 0 using the provided message, buffer, and topic.
+ * 
+ * @param message The `message` parameter is of type `MQTT::Message` and is used to store the message
+ * details such as QoS level, retained flag, duplicate flag, payload, and payload length.
+ * @param buf The `buf` parameter in the `sendMQTTMessage` function is a character array that contains
+ * the payload data to be sent in the MQTT message.
+ * @param topic The `topic` parameter in the `sendMQTTMessage` function is a pointer to a constant
+ * character array that represents the topic to which the MQTT message will be published. It specifies
+ * the destination or channel to which the message will be sent within the MQTT broker.
+ */
+void sendMQTTMessage(MQTT::Message message, char* buf, const char* topic)
+{
+    message.qos = MQTT::QOS0;
+    message.retained = false;
+    message.dup = false;
+    message.payload = (void*)buf;
+    message.payloadlen = strlen(buf)+1;
+    int rc = client.publish(topic, message);
+	if (rc != 0)
+		printf("Error %d from sending QoS 0 message\n", rc);
+}
+#endif
 
 /**
- * The function `printUserTime` prints the values of a `user_time_ptr_t` object, which represents a
- * specific date and time, to the console.
- * 
- * @param timePtr timePtr is a pointer to a struct or class object that contains information about a
- * user's time. The struct or class should have the following members:
+ * Prints the values of a shared memory safe `user_time_ptr_t` pointer to a `user_time_t` struct
+ * @param timePtr timePtr is the pointer to a struct that contains information about the time.
  * */
 void printUserTime(user_time_ptr_t timePtr)
 {
@@ -58,15 +98,13 @@ void printUserTime(user_time_ptr_t timePtr)
         cerr << "Error: Null pointer provided." << endl;
         return;
     }
-    cout << "Seconds: " << static_cast<int>(timePtr->seconds) << endl;
-    cout << "Minutes: " << static_cast<int>(timePtr->minutes) << endl;
+    cout << "Time: ";
     if(timePtr->clock_12hr)
     {
-        cout << "Hours: " << static_cast<int>(timePtr->hours);
-        if(timePtr->am_pm) cout << " PM" << endl;
-        else cout << " AM" << endl;
+        if(timePtr->am_pm) cout << static_cast<int>(timePtr->hours) << ":" << static_cast<int>(timePtr->minutes) << ":" << static_cast<int>(timePtr->seconds) << " PM" << endl;
+        else cout << static_cast<int>(timePtr->hours) << ":" << static_cast<int>(timePtr->minutes) << ":" << static_cast<int>(timePtr->seconds) << " AM" << endl;
     }
-    else cout << "Hours: " << static_cast<int>(timePtr->hours) << endl;
+    else cout << static_cast<int>(timePtr->hours) << ":" << static_cast<int>(timePtr->minutes) << ":" << static_cast<int>(timePtr->seconds) << endl;
     cout << "Day of Week: " << static_cast<int>(timePtr->day_of_week) << endl;
     cout << "Date of Month: " << static_cast<int>(timePtr->date_of_month) << endl;
     cout << "Month: " << static_cast<int>(timePtr->month) << endl;
@@ -74,22 +112,42 @@ void printUserTime(user_time_ptr_t timePtr)
 }
 
 /**
- * The function `printUserAlarm` prints the values of a user alarm structure, including the seconds,
+ * Prints the values of a user alarm structure, including the seconds,
  * minutes, hours, day or date, and rate of the alarm.
  * 
  * @param alarm_ptr The parameter `alarm_ptr` is a pointer to a structure of type `user_alarm_ptr_t`.
  */
 void printUserAlarm(user_alarm_ptr_t alarm_ptr)
 {
-    cout << "Seconds: " << static_cast<int>(alarm_ptr->seconds) << endl;
-    cout << "Minutes: " << static_cast<int>(alarm_ptr->minutes) << endl;
-    if(alarm_ptr->clock_12hr)
+    // if(alarm_ptr->alarm_num == 1) cout << "Seconds: " << static_cast<int>(alarm_ptr->seconds) << endl;
+    // cout << "Minutes: " << static_cast<int>(alarm_ptr->minutes) << endl;
+    // if(alarm_ptr->clock_12hr)
+    // {
+    //     cout << "Hours: " << static_cast<int>(alarm_ptr->hours);
+    //     if(alarm_ptr->am_pm) cout << " PM" << endl;
+    //     else cout << " AM" << endl;
+    // } else cout << "Hours: " << static_cast<int>(alarm_ptr->hours) << endl;
+
+    cout << "Time: ";
+    if(alarm_ptr->alarm_num == 1)
     {
-        cout << "Hours: " << static_cast<int>(alarm_ptr->hours);
-        if(alarm_ptr->am_pm) cout << " PM" << endl;
-        else cout << " AM" << endl;
-    } else cout << "Hours: " << static_cast<int>(alarm_ptr->hours) << endl;
-    cout << "Day or Date: " << static_cast<int>(alarm_ptr->day_or_date) << endl;
+        if(alarm_ptr->clock_12hr)
+        {
+            if(alarm_ptr->am_pm) cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << ":" << static_cast<int>(alarm_ptr->seconds) << " PM" << endl;
+            else cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << ":" << static_cast<int>(alarm_ptr->seconds) << " AM" << endl;
+        }
+        else cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << ":" << static_cast<int>(alarm_ptr->seconds) << endl;
+    } 
+    else 
+    {
+       if(alarm_ptr->clock_12hr)
+        {
+            if(alarm_ptr->am_pm) cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << " PM" << endl;
+            else cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << " AM" << endl;
+        }
+        else cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << endl; 
+    }
+    // cout << "Day or Date: " << static_cast<int>(alarm_ptr->day_or_date) << endl;
 
     // Print union member based on the value of 'day_or_date'
     if (alarm_ptr->day_or_date == 0)
@@ -160,8 +218,7 @@ void printUserAlarm(user_alarm_ptr_t alarm_ptr)
 }
 
 /**
- * The function "currentDateTime" returns the current date and time in the format
- * "YYYY-MM-DD.HH:MM:SS".
+ * Returns the current date and time in the format "YYYY-MM-DD.HH:MM:SS".
  * 
  * @return a string that represents the current date and time in the format "YYYY-MM-DD.HH:MM:SS".
  */
@@ -176,53 +233,28 @@ const string currentDateTime()
     return buf;
 }
 
-
 /**
- * The function "signal_handler" prints a message indicating the received signal number and sets the
+ * Prints a message indicating the received signal number and stops the loop by setting the
  * "running" variable to false.
  * 
  * @param signum signum is the parameter that represents the signal number that triggered the signal
  * handler function.
  */
 void signal_handler(int signum) {
-    cout << "Received signal " << signum << ", exiting..." << endl;
+    cout << "Received signal " << signum  << endl;
     running = false;
 }
 
-
-/**
- * The function `sendMQTTMessage` sends a MQTT message with QoS 0 using the provided message, buffer,
- * and topic.
- * 
- * @param message The `message` parameter is of type `MQTT::Message` and is used to store the message
- * details such as QoS level, retained flag, duplicate flag, payload, and payload length.
- * @param buf The `buf` parameter in the `sendMQTTMessage` function is a character array that contains
- * the payload data to be sent in the MQTT message.
- * @param topic The `topic` parameter in the `sendMQTTMessage` function is a pointer to a constant
- * character array that represents the topic to which the MQTT message will be published. It specifies
- * the destination or channel to which the message will be sent within the MQTT broker.
- */
-void sendMQTTMessage(MQTT::Message message, char* buf, const char* topic)
-{
-    message.qos = MQTT::QOS0;
-    message.retained = false;
-    message.dup = false;
-    message.payload = (void*)buf;
-    message.payloadlen = strlen(buf)+1;
-    int rc = client.publish(topic, message);
-	if (rc != 0)
-		printf("Error %d from sending QoS 0 message\n", rc);
-}
 
 int main() {
     // Register signal handler for SIGINT
     signal(SIGINT, signal_handler);
 
-
+    #ifdef TEST_WITH_MQTT
     // //////////////////// MQTT CONNECTION /////////////////////
     printf("Version is %f\n", version);
-    const char* hostname = "192.168.1.58";
-    int port = 1883;
+    const char* hostname = HOSTNAME;
+    int port = PORT;
     printf("Connecting to %s:%d\n", hostname, port);
     int rc = ipstack.connect(hostname, port);
 	if (rc != 0)
@@ -231,7 +263,7 @@ int main() {
 	printf("MQTT connecting\n");
     MQTTPacket_connectData data = MQTTPacket_connectData_initializer;       
     data.MQTTVersion = 3;
-    data.clientID.cstring = (char*)"magdalenabay";
+    data.clientID.cstring = (char*)DEVICE_ID;
     rc = client.connect(data);
 	if (rc != 0)
 	    printf("rc from MQTT connect is %d\n", rc);
@@ -242,55 +274,158 @@ int main() {
         printf("rc from MQTT subscribe is %d\n", rc);
 
     MQTT::Message message;
-    // //////////////////// MQTT CONNECTION /////////////////////
-
-
-    // SEND MQTT MESSAGES TO THE BROKER ON THE "DS3231" TOPIC
     char buf[200];
+    // //////////////////// MQTT CONNECTION /////////////////////
+    #endif
+
+    ////////////////////// DEMONSTRATING THE API ///////////////////////
     RTC rtc(1, 0x68);
 
-    rtc.setTimeAlarm2(10, FORMAT_0_23, PM, 10, 0, 1);
+    #ifdef TEST_TIME_API
+    cout << ">>>> Testing the Time APIs" << endl;
+    cout << "\n>>>> Get the time on the RTC" << endl;
+    user_time_ptr_t time = rtc.getTime();
+    printUserTime(time);
 
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DATE_DAY);
-    user_alarm_ptr_t alarm = rtc.getAlarm2();
-    printUserAlarm(alarm);
-    
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
-    alarm = rtc.getAlarm2();
+    cout << "\n>>>> Set the time" << endl;
+    uint8_t seconds         = 25;
+    uint8_t minutes         = 50;
+    uint8_t hours           = 19;
+    uint8_t day_of_week     = 5;
+    uint8_t date            = 12;
+    uint8_t month           = 2;
+    uint8_t year_from_2000  = 12;
+    rtc.setTime(seconds, minutes, FORMAT_0_23, AM, hours, day_of_week, date, month, year_from_2000); // counts from 2000
+    time = rtc.getTime();
+    printUserTime(time);
+
+    cout << "\n>>>> Set the current system time to the RTC" << endl;
+    rtc.setCurrentTimeToRTC(FORMAT_0_12);
+    time = rtc.getTime();
+    printUserTime(time);
+    #endif
+
+    #ifdef TEST_ALARM_API
+    cout << "\n\n>>>> Testing Alarm APIs" << endl;
+    uint8_t alarm_1_seconds         = 25;
+    uint8_t alarm_1_minutes         = 50;
+    uint8_t alarm_1_hours           = 19;
+    uint8_t alarm_1_day_of_week     = 5;
+    uint8_t alarm_1_date            = 12;
+    cout << ">>>> Testing Alarm 1" << endl;
+    cout << ">>>> Setting Alarm 1" << endl;
+    rtc.setTimeAlarm1(alarm_1_seconds, alarm_1_minutes, FORMAT_0_23, PM, alarm_1_hours, DATE_OF_MONTH, alarm_1_date); // AM or PM does not matter in 23 hour format
+    user_alarm_ptr_t alarm = rtc.getAlarm1();
     printUserAlarm(alarm);
 
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_HOUR);
-    alarm = rtc.getAlarm2();
-    printUserAlarm(alarm);
-
-    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DAY);
-    alarm = rtc.getAlarm2();
-    printUserAlarm(alarm);
-
-    
+    cout << "\n>>>> Setting Rate of Alarm 1 to once per second" << endl;
     rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
     alarm = rtc.getAlarm1();
     printUserAlarm(alarm);
 
+    cout << "\n>>>> Setting Rate of Alarm 1 to once per minute" << endl;
     rtc.setRateAlarm1(ALARM_1_ONCE_PER_MINUTE);
     alarm = rtc.getAlarm1();
     printUserAlarm(alarm);
 
+    cout << "\n>>>> Setting Rate of Alarm 1 to once per hour" << endl;
     rtc.setRateAlarm1(ALARM_1_ONCE_PER_HOUR);
     alarm = rtc.getAlarm1();
     printUserAlarm(alarm);
 
+    cout << "\n>>>> Setting Rate of Alarm 1 to once per day" << endl;
     rtc.setRateAlarm1(ALARM_1_ONCE_PER_DAY);
     alarm = rtc.getAlarm1();
     printUserAlarm(alarm);
 
-    rtc.setRateAlarm1(ALARM_1_ONCE_PER_DATE_DAY);
-    alarm = rtc.getAlarm1();
+    cout << "\n>>>> Testing Alarm 2" << endl;
+    uint8_t alarm_2_minutes         = 50;
+    uint8_t alarm_2_hours           = 19;
+    uint8_t alarm_2_day_of_week     = 5;
+    uint8_t alarm_2_date            = 12;
+    cout << ">>>> Setting Alarm 2" << endl;
+    rtc.setTimeAlarm2(alarm_2_minutes, FORMAT_0_23, PM, alarm_2_hours, DAY_OF_WEEK, alarm_2_day_of_week); // AM or PM does not matter while FORMAT_0_23
+    alarm = rtc.getAlarm2();
     printUserAlarm(alarm);
-    // SEND MQTT MESSAGES TO THE BROKER ON THE "DS3231" TOPIC
 
-    rtc.enableSquareWave(SQW_8KHZ);
+    cout << "\n>>>> Setting Rate of Alarm 2 to once per minute" << endl;
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
+    alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
     
+    cout << "\n>>>> Setting Rate of Alarm 2 to once per hour" << endl;
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_HOUR);
+    alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
+
+    cout << "\n>>>> Setting Rate of Alarm 2 to once per day" << endl;
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_DAY);
+    alarm = rtc.getAlarm2();
+    printUserAlarm(alarm);
+    #endif
+
+    #ifdef TEST_ALARM_EVERY_SECOND
+    rtc.disableInterruptAlarm2();
+    rtc.setTimeAlarm1(0, 0, FORMAT_0_23, AM, 0, DAY_OF_WEEK, 1);
+    rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
+    while(true)
+    {
+        if(!running)
+        {
+            cout << "Disable Alarm 1 for 5 seconds" << endl;
+            rtc.disableInterruptAlarm1();
+            sleep(5);
+            rtc.enableInterruptAlarm1();
+            running = true;
+            cout << "Alarm 1 will resume ringing" << endl;
+        }
+        rtc.snoozeAlarm1();
+        cout << "Snoozed Alarm" << endl;
+        sleep(1);
+    }
+    #endif
+
+    #ifdef TEST_ALARM_EVERY_MINUTE
+    rtc.disableInterruptAlarm1();
+    rtc.setTimeAlarm2(0, FORMAT_0_23, AM, 0, DAY_OF_WEEK, 1);
+    rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
+    while(running)
+    {
+        rtc.snoozeAlarm2();
+        cout << "Snoozed Alarm" << endl;
+        sleep(60);
+    }
+    #endif
+
+    #ifdef TEST_SQW
+    rtc.enableSquareWave(SQW_1HZ); // Only a 1Hz wave is produced (register mismatch for clone chips)
+    #endif
+
+    #ifdef TEST_TEMPERATURE
+    float temp;
+    while(running)
+    {
+        temp = rtc.getTemperature();
+        cout << "Temperature is: " << temp << endl;
+        sleep(60);
+    }
+    #endif
+
+    #ifdef TEST_WITH_MQTT
+    float temp;
+    char* topic = TOPIC;
+    while(running)
+    {
+        temp = rtc.getTemperature();
+        cout << "Temperature is: " << temp << endl;
+        sprintf(buf, "Temperature is: %.2f", temp);
+        sendMQTTMessage(message, buf, topic);
+        sleep(60);
+    }
+    #endif
+    ////////////////////// DEMONSTRATING THE API ///////////////////////
+    
+    #ifdef TEST_WITH_MQTT
     // //////////////////// Terminate MQTT CONNECTION /////////////////////
     rc = client.unsubscribe(topic);
     if (rc != 0)
@@ -302,8 +437,7 @@ int main() {
     
     ipstack.disconnect();
     // //////////////////// Terminate MQTT CONNECTION /////////////////////
+    #endif
     
-    // printf("Finishing with %d messages received\n", arrivedcount);
-
     return 0;
 }
