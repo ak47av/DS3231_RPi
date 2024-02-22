@@ -451,8 +451,8 @@ user_alarm_ptr_t RTC::getAlarm1()
     // if it is a 24 hour clock, write the hours straight to the register
     else alarm_1->hours = this->BCD_to_decimal(alarm_1_regs[2] & 0x3F);
     
-    // CODE TO BE REFACTORED
-    alarm_1->day_or_date = (alarm_1_regs[3] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
+    // Set the Day of week if bit 6 is set, else set date of month from regsiter 0x0A
+    alarm_1->day_or_date = ((alarm_1_regs[3] & MASK_ALARM_DAY_OR_DATEINV) >> 6) ? DAY_OF_WEEK : DATE_OF_MONTH;
     if(alarm_1->day_or_date) alarm_1->day_date.day_of_week = BCD_to_decimal(alarm_1_regs[3] & MASK_ALARM_DAY_DATE);
     else alarm_1->day_date.date_of_month = BCD_to_decimal(alarm_1_regs[3] & MASK_ALARM_DAY_DATE);
 
@@ -466,21 +466,31 @@ user_alarm_ptr_t RTC::getAlarm1()
  */
 user_alarm_ptr_t RTC::getAlarm2()
 {
+    // get the memory safe pointer to new alarm object to store the information
     user_alarm_ptr_t alarm_2 (new user_alarm_t);
+    // get the register values in a single read (0x0B through 0x0D)
     uint8_t* alarm_2_regs = this->readRegisters(3, REG_MINUTES_ALARM_2);
+    // get the rate of the alarm by giving the function the registers we got in the previous line
     rate_alarm_2 alarm_rate = this->getRateAlarm2(alarm_2_regs);
-    alarm_2->rate_alarm.rate_2 = alarm_rate;
-    alarm_2->alarm_num = 2;
+    alarm_2->rate_alarm.rate_2 = alarm_rate;    // Set the rate of the alarm
+    alarm_2->alarm_num = 2;                     // Set the alarm number to 2
+    // Set the timing of the alarm by extracting the values from the appropriate registers
     alarm_2->minutes = this->BCD_to_decimal(alarm_2_regs[0] & MASK_ALARM_MINUTES);
+
+    // Check if the 12 hour clock bit (bit 6) is set in 0x0C
     if(alarm_2->clock_12hr)
     {
+        // if the PM bit (bit 5) is set in 0x0C, set to PM
         if((alarm_2_regs[1] & 0x20) >> 5) alarm_2->am_pm = PM;
+        // if the AM bit (bit 5) is clear in 0x0C, set to AM
         else alarm_2->am_pm = AM;
-        alarm_2->hours   = this->BCD_to_decimal(alarm_2_regs[1] & 0x1F);
+        alarm_2->hours   = this->BCD_to_decimal(alarm_2_regs[1] & 0x1F); // set the hours
     }
+    // if it is a 24 hour clock, write the hours straight to the register
     else alarm_2->hours = this->BCD_to_decimal(alarm_2_regs[1] & 0x3F);
     
-    alarm_2->day_or_date = (alarm_2_regs[2] & MASK_ALARM_DAY_OR_DATEINV) >> 6;
+    // Set the Day of week if bit 6 is set, else set date of month from regsiter 0x0D
+    alarm_2->day_or_date = ((alarm_2_regs[2] & MASK_ALARM_DAY_OR_DATEINV) >> 6) ? DAY_OF_WEEK : DATE_OF_MONTH;
     if(alarm_2->day_or_date) alarm_2->day_date.day_of_week = BCD_to_decimal(alarm_2_regs[2] & MASK_ALARM_DAY_DATE);
     else alarm_2->day_date.date_of_month = BCD_to_decimal(alarm_2_regs[2] & MASK_ALARM_DAY_DATE);
 
@@ -495,33 +505,42 @@ user_alarm_ptr_t RTC::getAlarm2()
  * 
  * @return 0 if successful, 1 if unsuccesful
  */
-int RTC::setRateAlarm1(rate_alarm_1 rate)
+int RTC::setRateAlarm1(rate_alarm_1 rate)   // get the rate of alarm 1 from the enum
 {
     int res = 0;
+    // extract the data from the registers in a single read
     uint8_t* alarm_regs = this->readRegisters(4, REG_SECONDS_ALARM_1);
     uint8_t A1M1, A1M2, A1M3, A1M4;
 
+    // Set A1M1
     A1M1 = rate & 0b1;
     if(A1M1) alarm_regs[0] |= 0x80;
     else alarm_regs[0] &= ~(0x80);
+    // Write back to 0x07
     res = this->writeRegister(REG_SECONDS_ALARM_1,alarm_regs[0]);
     if(res) return 1;
 
+    // Set A1M2
     A1M2 = rate & 0b10;
     if(A1M2) alarm_regs[1] |= 0x80;
     else alarm_regs[1] &= ~(0x80);
+    // Write back to 0x08
     res = this->writeRegister(REG_MINUTES_ALARM_1,alarm_regs[1]);
     if(res) return 1;
 
+    // Set A1M3
     A1M3 = rate & 0b100;
     if(A1M3) alarm_regs[2] |= 0x80;
     else alarm_regs[2] &= ~(0x80);
+    // Write back to 0x09
     res = this->writeRegister(REG_HOURS_ALARM_1,alarm_regs[2]);
     if(res) return 1;
 
+    // Set A1M4
     A1M4 = rate & 0b1000;
     if(A1M4) alarm_regs[3] |= 0x80;
     else alarm_regs[3] &= ~(0x80);
+    // Write back to 0x0A
     res = this->writeRegister(REG_DAYS_ALARM_1,alarm_regs[3]);
     if(res) return 1;
     return 0;
@@ -539,24 +558,31 @@ int RTC::setRateAlarm1(rate_alarm_1 rate)
 int RTC::setRateAlarm2(rate_alarm_2 rate)
 {
     int res = 0;
+    // extract the data from the registers in a single read
     uint8_t* alarm_regs = this->readRegisters(3, REG_MINUTES_ALARM_2);
     uint8_t A2M2, A2M3, A2M4;
 
+    // Set A2M2
     A2M2 = rate & 0b1;
     if(A2M2) alarm_regs[0] |= 0x80;
     else alarm_regs[0] &= ~(0x80);
+    // Write back to 0x0B
     res = this->writeRegister(REG_MINUTES_ALARM_2,alarm_regs[0]);
     if(res) return 1;
 
+    // Set A2M3
     A2M3 = rate & 0b10;
     if(A2M3) alarm_regs[1] |= 0x80;
     else alarm_regs[1] &= ~(0x80);
+    // Write back to 0x0C
     res = this->writeRegister(REG_HOURS_ALARM_2,alarm_regs[1]);
     if(res) return 1;
 
+    // Set A2M4
     A2M4 = rate & 0b100;
     if(A2M4) alarm_regs[2] |= 0x80;
     else alarm_regs[2] &= ~(0x80);
+    // Write back to 0x0D
     res = this->writeRegister(REG_DAYS_ALARM_2,alarm_regs[2]);
     if(res) return 1;
 
@@ -570,9 +596,9 @@ int RTC::setRateAlarm2(rate_alarm_2 rate)
  */
 int RTC::snoozeAlarm1()
 {
-    uint8_t status_reg = this->readRegister(REG_STATUS);
-    status_reg &= ~(MASK_ALARM_1_FLAG);
-    int res = this->writeRegister(REG_STATUS, status_reg);
+    uint8_t status_reg = this->readRegister(REG_STATUS);    // Read the status register 0x0F
+    status_reg &= ~(MASK_ALARM_1_FLAG);                     // Clear the A1F bit
+    int res = this->writeRegister(REG_STATUS, status_reg);  // Write the modified value back to 0x0F
     if(res) cerr << "RTC: Unable to snooze Alarm 1" << endl;
     return res;
 }
@@ -584,9 +610,9 @@ int RTC::snoozeAlarm1()
  */
 int RTC::snoozeAlarm2()
 {
-    uint8_t status_reg = this->readRegister(REG_STATUS);
-    status_reg &= ~(MASK_ALARM_2_FLAG);
-    int res = this->writeRegister(REG_STATUS, status_reg);
+    uint8_t status_reg = this->readRegister(REG_STATUS);    // Read the status register 0x0F
+    status_reg &= ~(MASK_ALARM_2_FLAG);                     // Clear the A2F bit
+    int res = this->writeRegister(REG_STATUS, status_reg);  // Write the modified value back to 0x0F
     if(res) cerr << "RTC: Unable to snooze Alarm 1" << endl;
     return res;
 }
@@ -598,9 +624,9 @@ int RTC::snoozeAlarm2()
  */
 int RTC::enableInterruptAlarm1()
 {
-    uint8_t control_reg = this->readRegister(REG_CONTROL);
-    control_reg |= (MASK_ALARM_1_INT_ENABLE);
-    int res = this->writeRegister(REG_CONTROL, control_reg);
+    uint8_t control_reg = this->readRegister(REG_CONTROL);  // Read the Control register 0x0E
+    control_reg |= (MASK_ALARM_1_INT_ENABLE);               // Set the A1IE bit
+    int res = this->writeRegister(REG_CONTROL, control_reg);// Write the modified value back to 0x0E
     if(res) cerr << "RTC: Unable to enable Alarm 1" << endl;
     return res;
 }
@@ -612,9 +638,9 @@ int RTC::enableInterruptAlarm1()
  */
 int RTC::disableInterruptAlarm1()
 {
-    uint8_t control_reg = this->readRegister(REG_CONTROL);
-    control_reg &= ~(MASK_ALARM_1_INT_ENABLE);
-    int res = this->writeRegister(REG_CONTROL, control_reg);
+    uint8_t control_reg = this->readRegister(REG_CONTROL);  // Read the Control register 0x0E
+    control_reg &= ~(MASK_ALARM_1_INT_ENABLE);              // Clear the A1IE bit
+    int res = this->writeRegister(REG_CONTROL, control_reg);// Write the modified value back to 0x0E
     if(res) cerr << "RTC: Unable to disable Alarm 1" << endl;
     return res;
 }
@@ -626,9 +652,9 @@ int RTC::disableInterruptAlarm1()
  */
 int RTC::enableInterruptAlarm2()
 {
-    uint8_t control_reg = this->readRegister(REG_CONTROL);
-    control_reg |= (MASK_ALARM_2_INT_ENABLE);
-    int res = this->writeRegister(REG_CONTROL, control_reg);
+    uint8_t control_reg = this->readRegister(REG_CONTROL);  // Read the Control register 0x0E
+    control_reg |= (MASK_ALARM_2_INT_ENABLE);               // Set the A2IE bit
+    int res = this->writeRegister(REG_CONTROL, control_reg);// Write the modified value back to 0x0E
     if(res) cerr << "RTC: Unable to enable Alarm 2" << endl;
     return res;
 }
@@ -640,9 +666,9 @@ int RTC::enableInterruptAlarm2()
  */
 int RTC::disableInterruptAlarm2()
 {
-    uint8_t control_reg = this->readRegister(REG_CONTROL);
-    control_reg &= ~(MASK_ALARM_2_INT_ENABLE);
-    int res = this->writeRegister(REG_CONTROL, control_reg);
+    uint8_t control_reg = this->readRegister(REG_CONTROL);  // Read the Control register 0x0E        
+    control_reg &= ~(MASK_ALARM_2_INT_ENABLE);              // clear the A2IE bit
+    int res = this->writeRegister(REG_CONTROL, control_reg);// Write the modified value back to 0x0E
     if(res) cerr << "RTC: Unable to disable Alarm 2" << endl;
     return res;
 }
@@ -663,10 +689,14 @@ int RTC::disableInterruptAlarm2()
  */
 int RTC::enableSquareWave(sqw_frequency freq)
 {
-    uint8_t control_reg = this->readRegister(REG_CONTROL);
+    uint8_t control_reg = this->readRegister(REG_CONTROL); // Read the control register 0x0E
+    // Clear A1IE, A2IE, INTCN, RS2 and RS1 bits
     control_reg &= ~(MASK_ALARM_1_INT_ENABLE | MASK_ALARM_2_INT_ENABLE | MASK_INTERRUPT_CONTROL | MASK_RATE_SELECT_1 | MASK_RATE_SELECT_2);
+    // set RS1 and RS2 to the frequency specified
     control_reg |= (freq << 3);
+    // set the BBSQW bit 
     control_reg |= MASK_BAT_BACKUP_SQW_ENABLE;
+    // write the modified value back to 0x0E
     int res = this->writeRegister(REG_CONTROL, control_reg);
     if(res) cerr << "RTC: Unable to enable Square wave" << endl;
     return res;
@@ -677,5 +707,6 @@ int RTC::enableSquareWave(sqw_frequency freq)
  */
 RTC::~RTC()
 {
+    // close the I2C device file associated with the RTC 
     this->close();
 }

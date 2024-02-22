@@ -60,7 +60,7 @@
 #define REG_TEMPERATURE_MSB         0x11
 #define REG_TEMPERATURE_LSB         0x12
 
-
+// Made it difficult for the users to go wrong with inputs by defining strict ENUM inputs
 enum rate_alarm_1
 {
     ALARM_1_ONCE_PER_SECOND     = 0b1111,
@@ -104,6 +104,7 @@ enum sqw_frequency
     SQW_8KHZ    = 0b11
 };
 
+// typedef struct to store the time information
 typedef struct user_time_t {
     uint8_t seconds;       
     uint8_t minutes;
@@ -116,6 +117,7 @@ typedef struct user_time_t {
     uint8_t year;
 } user_time_t;
 
+// typedef struct to store the alarm information
 typedef struct user_alarm_t {
     uint8_t alarm_num;
     uint8_t seconds;
@@ -123,12 +125,14 @@ typedef struct user_alarm_t {
     uint8_t hours;
     CLOCK_FORMAT clock_12hr;
     AM_OR_PM am_pm;
-    uint8_t day_or_date;
+    DAY_OR_DATE day_or_date;
+    // union to store either day of the week, or date of the month
     union
     {
         uint8_t day_of_week;
         uint8_t date_of_month;
     } day_date;
+    // union to store either rate of alarm 1 or rate of alarm 2
     union
     {
         rate_alarm_1 rate_1;

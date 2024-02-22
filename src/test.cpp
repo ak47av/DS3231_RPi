@@ -19,13 +19,13 @@ using namespace std;
 
 ///////////////// RUN THE TESTS BELOW ONE BY ONE ///////////////////////////
 
-// #define TEST_WITH_MQTT               // REQUIRES A CONNECTION TO AN MQTT BROKER
 // #define TEST_TIME_API
-#define TEST_ALARM_API
+// #define TEST_ALARM_API
 // #define TEST_ALARM_EVERY_SECOND      // Ctrl+C to stop alarm for 5 seconds  
 // #define TEST_ALARM_EVERY_MINUTE      // RISING EDGE EVERY MINUTE
 // #define TEST_TEMPERATURE
 // #define TEST_SQW
+// #define TEST_WITH_MQTT               // REQUIRES A CONNECTION TO AN MQTT BROKER
 
 ///////////////// RUN THE TESTS BELOW ONE BY ONE ///////////////////////////
 
@@ -48,7 +48,7 @@ MQTT::Client<IPStack, Countdown> client = MQTT::Client<IPStack, Countdown>(ipsta
 
 int arrivedcount = 0;
 /**
- * Prints information about an incoming MQTT message.
+ * Prints information about an incoming MQTT message. For Debugging purposes only.
  * 
  * @param md In the `messageArrived` function, `md` is of type `MQTT::MessageData&`, which is a
  * reference to a structure containing information about the arrived message. This structure typically
@@ -282,6 +282,7 @@ int main() {
     RTC rtc(1, 0x68);
 
     #ifdef TEST_TIME_API
+    // Test the functionality of setting the time, setting the system time and getting the time
     cout << ">>>> Testing the Time APIs" << endl;
     cout << "\n>>>> Get the time on the RTC" << endl;
     user_time_ptr_t time = rtc.getTime();
@@ -306,15 +307,19 @@ int main() {
     #endif
 
     #ifdef TEST_ALARM_API
+    // Test the functionality of setting time, rate and getting the details of the alarms
     cout << "\n\n>>>> Testing Alarm APIs" << endl;
     uint8_t alarm_1_seconds         = 25;
     uint8_t alarm_1_minutes         = 50;
-    uint8_t alarm_1_hours           = 19;
+    CLOCK_FORMAT alarm_1_format     = FORMAT_0_12;
+    AM_OR_PM alarm_1_AM_PM          = PM;
+    uint8_t alarm_1_hours           = 7;
+    DAY_OR_DATE alarm_1_dayordate   = DATE_OF_MONTH;
     uint8_t alarm_1_day_of_week     = 5;
     uint8_t alarm_1_date            = 12;
     cout << ">>>> Testing Alarm 1" << endl;
     cout << ">>>> Setting Alarm 1" << endl;
-    rtc.setTimeAlarm1(alarm_1_seconds, alarm_1_minutes, FORMAT_0_23, PM, alarm_1_hours, DATE_OF_MONTH, alarm_1_date); // AM or PM does not matter in 23 hour format
+    rtc.setTimeAlarm1(alarm_1_seconds, alarm_1_minutes, alarm_1_format, alarm_1_AM_PM, alarm_1_hours, alarm_1_dayordate, alarm_1_date); // AM or PM does not matter in 23 hour format
     user_alarm_ptr_t alarm = rtc.getAlarm1();
     printUserAlarm(alarm);
 
@@ -340,11 +345,14 @@ int main() {
 
     cout << "\n>>>> Testing Alarm 2" << endl;
     uint8_t alarm_2_minutes         = 50;
-    uint8_t alarm_2_hours           = 19;
+    CLOCK_FORMAT alarm_2_format     = FORMAT_0_23;
+    AM_OR_PM alarm_2_AM_PM          = PM;
+    uint8_t alarm_2_hours           = 17;
+    DAY_OR_DATE alarm_2_dayordate   = DAY_OF_WEEK;
     uint8_t alarm_2_day_of_week     = 5;
     uint8_t alarm_2_date            = 12;
     cout << ">>>> Setting Alarm 2" << endl;
-    rtc.setTimeAlarm2(alarm_2_minutes, FORMAT_0_23, PM, alarm_2_hours, DAY_OF_WEEK, alarm_2_day_of_week); // AM or PM does not matter while FORMAT_0_23
+    rtc.setTimeAlarm2(alarm_2_minutes, alarm_2_format, alarm_2_AM_PM, alarm_2_hours, alarm_2_dayordate, alarm_2_day_of_week); // AM or PM does not matter while FORMAT_0_23
     alarm = rtc.getAlarm2();
     printUserAlarm(alarm);
 
@@ -365,6 +373,8 @@ int main() {
     #endif
 
     #ifdef TEST_ALARM_EVERY_SECOND
+    // Hit Ctrl + C to pause the alarm ringin for 5 seconds by disabling the interrupt
+    // Hit Ctrl + Z to exit the program
     rtc.disableInterruptAlarm2();
     rtc.setTimeAlarm1(0, 0, FORMAT_0_23, AM, 0, DAY_OF_WEEK, 1);
     rtc.setRateAlarm1(ALARM_1_ONCE_PER_SECOND);
@@ -386,6 +396,7 @@ int main() {
     #endif
 
     #ifdef TEST_ALARM_EVERY_MINUTE
+    // test alarm 2 ringing every minute
     rtc.disableInterruptAlarm1();
     rtc.setTimeAlarm2(0, FORMAT_0_23, AM, 0, DAY_OF_WEEK, 1);
     rtc.setRateAlarm2(ALARM_2_ONCE_PER_MINUTE);
@@ -402,6 +413,7 @@ int main() {
     #endif
 
     #ifdef TEST_TEMPERATURE
+    // prints temperature every 60 seconds
     float temp;
     while(running)
     {
@@ -412,6 +424,7 @@ int main() {
     #endif
 
     #ifdef TEST_WITH_MQTT
+    // publishes a string with temperature every 60 seconds to the MQTT broker configured
     float temp;
     char* topic = TOPIC;
     while(running)
