@@ -157,6 +157,8 @@ private:
     int setTimeAlarm(uint8_t alarm_num, uint8_t minutes, CLOCK_FORMAT clock_12_hr, AM_OR_PM am_pm, uint8_t hours, DAY_OR_DATE day_or_date, uint8_t day_date);
     rate_alarm_1 getRateAlarm1(uint8_t* alarm_1_regs);
     rate_alarm_2 getRateAlarm2(uint8_t* alarm_2_regs);
+    void printUserTime(user_time_ptr_t timePtr);
+    void printUserAlarm(user_alarm_ptr_t alarm_ptr);
 
 public:
     RTC(unsigned int bus, unsigned int device);
@@ -178,6 +180,9 @@ public:
     int disableInterruptAlarm2();
     int enableSquareWave(sqw_frequency freq); // disables alarms
     int setState32kHz(state_32kHz state);
+    void displayTime();
+    void displayAlarm1();
+    void displayAlarm2();
     ~RTC();
 };
 

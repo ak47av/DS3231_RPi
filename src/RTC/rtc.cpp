@@ -716,6 +716,165 @@ int RTC::setState32kHz(state_32kHz state)
 }
 
 /**
+ * Prints the values of a shared memory safe `user_time_ptr_t` pointer to a `user_time_t` struct
+ * @param timePtr timePtr is the pointer to a struct that contains information about the time.
+ * */
+void RTC::printUserTime(user_time_ptr_t timePtr)
+{
+    if (timePtr == nullptr)
+    {
+        cerr << "Error: Null pointer provided." << endl;
+        return;
+    }
+    cout << "Time: ";
+    if (timePtr->clock_12hr)
+    {
+        if (timePtr->am_pm)
+            cout << static_cast<int>(timePtr->hours) << ":" << static_cast<int>(timePtr->minutes) << ":" << static_cast<int>(timePtr->seconds) << " PM" << endl;
+        else
+            cout << static_cast<int>(timePtr->hours) << ":" << static_cast<int>(timePtr->minutes) << ":" << static_cast<int>(timePtr->seconds) << " AM" << endl;
+    }
+    else
+        cout << static_cast<int>(timePtr->hours) << ":" << static_cast<int>(timePtr->minutes) << ":" << static_cast<int>(timePtr->seconds) << endl;
+    cout << "Day of Week: " << static_cast<int>(timePtr->day_of_week) << endl;
+    cout << "Date of Month: " << static_cast<int>(timePtr->date_of_month) << endl;
+    cout << "Month: " << static_cast<int>(timePtr->month) << endl;
+    cout << "Year: " << static_cast<int>(2000 + timePtr->year) << endl;
+}
+
+/**
+ * The displayTime function retrieves the time from the RTC and prints it.
+ */
+void RTC::displayTime()
+{
+    user_time_ptr_t user_time_ptr = this->getTime();
+    this->printUserTime(user_time_ptr);
+}
+
+/**
+ * Prints the values of a user alarm structure, including the seconds,
+ * minutes, hours, day or date, and rate of the alarm.
+ *
+ * @param alarm_ptr The parameter `alarm_ptr` is a pointer to a structure of type `user_alarm_ptr_t`.
+ */
+void RTC::printUserAlarm(user_alarm_ptr_t alarm_ptr)
+{
+
+    cout << "Time: ";
+    if (alarm_ptr->alarm_num == 1)
+    {
+        if (alarm_ptr->clock_12hr)
+        {
+            if (alarm_ptr->am_pm)
+                cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << ":" << static_cast<int>(alarm_ptr->seconds) << " PM" << endl;
+            else
+                cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << ":" << static_cast<int>(alarm_ptr->seconds) << " AM" << endl;
+        }
+        else
+            cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << ":" << static_cast<int>(alarm_ptr->seconds) << endl;
+    }
+    else
+    {
+        if (alarm_ptr->clock_12hr)
+        {
+            if (alarm_ptr->am_pm)
+                cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << " PM" << endl;
+            else
+                cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << " AM" << endl;
+        }
+        else
+            cout << static_cast<int>(alarm_ptr->hours) << ":" << static_cast<int>(alarm_ptr->minutes) << endl;
+    }
+    // cout << "Day or Date: " << static_cast<int>(alarm_ptr->day_or_date) << endl;
+
+    // Print union member based on the value of 'day_or_date'
+    if (alarm_ptr->day_or_date == 0)
+        cout << "Date of Month: " << static_cast<int>(alarm_ptr->day_date.date_of_month) << endl;
+    else
+        cout << "Day of Week: " << static_cast<int>(alarm_ptr->day_date.day_of_week) << endl;
+
+    // Print union member based on the type of rate alarm
+    if (alarm_ptr->alarm_num == 1)
+    {
+        cout << "Rate of alarm 1: ";
+        switch (alarm_ptr->rate_alarm.rate_1)
+        {
+        case ALARM_1_ONCE_PER_DATE_DAY:
+            if (alarm_ptr->day_or_date == 0)
+                cout << "Once on every date of the month" << endl;
+            else
+                cout << "Once on every day of the week" << endl;
+            break;
+
+        case ALARM_1_ONCE_PER_SECOND:
+            cout << "Once every second" << endl;
+            break;
+
+        case ALARM_1_ONCE_PER_MINUTE:
+            cout << "Once every minute when seconds match" << endl;
+            break;
+
+        case ALARM_1_ONCE_PER_HOUR:
+            cout << "Once every hour when minutes and seconds match" << endl;
+            break;
+
+        case ALARM_1_ONCE_PER_DAY:
+            cout << "Once every time hours, minutes and seconds match" << endl;
+            break;
+
+        default:
+            break;
+        }
+    }
+    else
+    {
+        cout << "Rate of alarm 2: ";
+        switch (alarm_ptr->rate_alarm.rate_2)
+        {
+        case ALARM_2_ONCE_PER_DATE_DAY:
+            if (alarm_ptr->day_or_date == 0)
+                cout << "Once on every date of the month" << endl;
+            else
+                cout << "Once on every day of the week" << endl;
+            break;
+
+        case ALARM_2_ONCE_PER_MINUTE:
+            cout << "Once every minute when seconds match" << endl;
+            break;
+
+        case ALARM_2_ONCE_PER_HOUR:
+            cout << "Once every hour when minutes and seconds match" << endl;
+            break;
+
+        case ALARM_2_ONCE_PER_DAY:
+            cout << "Once every time hours, minutes and seconds match" << endl;
+            break;
+
+        default:
+            break;
+        }
+    }
+}
+
+/**
+ * The function `displayAlarm1` retrieves the details of Alarm 1 stored in the RTC and displays them.
+ */
+void RTC::displayAlarm1()
+{
+    user_alarm_ptr_t alarm1 = this->getAlarm1();
+    printUserAlarm(alarm1);
+}
+
+/**
+ * The function `displayAlarm2` retrieves the details of Alarm 2 stored in the RTC and displays them.
+ */
+void RTC::displayAlarm2()
+{
+    user_alarm_ptr_t alarm2 = this->getAlarm2();
+    printUserAlarm(alarm2);
+}
+
+/**
  * The RTC destructor closes the RTC object.
  */
 RTC::~RTC()
