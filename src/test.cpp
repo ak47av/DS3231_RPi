@@ -23,7 +23,7 @@ using namespace std;
 // #define TEST_ALARM_API               // Runs once
 // #define TEST_ALARM_EVERY_SECOND      // Runs indefinitely, Ctrl+C to stop alarm for 5 seconds
 // #define TEST_ALARM_EVERY_MINUTE      // Runs indefinitely, RISING EDGE EVERY MINUTE
-// #define TEST_TEMPERATURE             // Runs indefinitely
+#define TEST_TEMPERATURE             // Runs indefinitely
 // #define TEST_SQW                     // Runs once
 // #define TEST_WITH_MQTT               // Runs indefinitely, REQUIRES A CONNECTION TO AN MQTT BROKER
 // #define TEST_32kHz                   // Runs indefinitely

@@ -192,7 +192,8 @@ int RTC::setCurrentTimeToRTC(CLOCK_FORMAT clock_12_hr)
  */
 float RTC::getTemperature()
 {
-    float temp_msb = static_cast<float>(this->readRegister(REG_TEMPERATURE_MSB));   // store the MSB
+    unsigned char temp_reg_value = this->readRegister(REG_TEMPERATURE_MSB);
+    float temp_msb = static_cast<float>(temp_reg_value & 0x7F);   // store the MSB
     unsigned char temp_lsb = this->readRegister(REG_TEMPERATURE_LSB);               // store the LSB
     unsigned char decimal_bits = (temp_lsb & 0xC0) >> 6;                            // get the LSB
 
@@ -214,7 +215,9 @@ float RTC::getTemperature()
     default:
         break;
     }
-    return temp_msb;
+    if(temp_reg_value & 0x80)
+        return -temp_msb;
+    else return temp_msb;
 }
 
 /**
