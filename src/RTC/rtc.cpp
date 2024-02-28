@@ -702,6 +702,19 @@ int RTC::enableSquareWave(sqw_frequency freq)
     return res;
 }
 
+int RTC::setState32kHz(state_32kHz state)
+{
+    uint8_t status_reg = this->readRegister(REG_STATUS);    // Read the status register 0x0F
+    // if the state is ON, then set the EN32kHz bit
+    if(state == ON) status_reg |= MASK_ENABLE_32KHZ_OUT;                 
+    // if the state is HIGH_IMPEDANCE, then clear the EN32kHz bit
+    else status_reg &= ~(MASK_ENABLE_32KHZ_OUT);
+    // write the modified status register
+    int res = this->writeRegister(REG_STATUS, status_reg);
+    if(res) cerr << "Unable to set state of 32kHz pin" << endl;
+    return res;
+}
+
 /**
  * The RTC destructor closes the RTC object.
  */

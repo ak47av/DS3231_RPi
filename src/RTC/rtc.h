@@ -104,6 +104,12 @@ enum sqw_frequency
     SQW_8KHZ    = 0b11
 };
 
+enum state_32kHz
+{
+    ON = 1,
+    HIGH_IMPEDANCE = 0
+};
+
 // typedef struct to store the time information
 typedef struct user_time_t {
     uint8_t seconds;       
@@ -171,6 +177,7 @@ public:
     int disableInterruptAlarm1();
     int disableInterruptAlarm2();
     int enableSquareWave(sqw_frequency freq); // disables alarms
+    int setState32kHz(state_32kHz state);
     ~RTC();
 };
 
